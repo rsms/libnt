@@ -19,7 +19,7 @@ bool ntn_tcp_server_init(ntn_tcp_server *server);
 void ntn_tcp_server_destroy(ntn_tcp_server *server);
 
 // Default server instance
-ntn_tcp_server *ntn_tcp_server_default();
+ntn_tcp_server *ntn_tcp_server_shared();
 
 // Bind server to address and port
 bool ntn_tcp_server_bind(ntn_tcp_server *server, const char *addr, short port, bool ipv6_enabled, bool ipv6_only);
@@ -27,8 +27,10 @@ bool ntn_tcp_server_bind(ntn_tcp_server *server, const char *addr, short port, b
 // Start the server (adds the servers accept event to the loop)
 bool ntn_tcp_server_start(ntn_tcp_server *server);
 
-// Run servers ev_loop
-#define ntn_tcp_server_run(server) ev_loop((server)->loop, 0)
+// Runs the servers loop. Possible flags:
+//  EVLOOP_NONBLOCK -- do not block/wait
+//  EVLOOP_ONESHOT  -- block *once* only
+#define ntn_tcp_server_run(server, int_flags) ev_loop((server)->loop, int_flags)
 
 // Return the IPv6 or IPv4 address in a human readable format (not thread safe)
 const char *ntn_tcp_server_host(ntn_tcp_server *server);

@@ -81,12 +81,10 @@ static void _sig_cb_unloopall(struct ev_loop *loop, struct ev_signal *w, int rev
   ev_unloop(loop, EVUNLOOP_ALL);
 }
 
-void ntn_util_sig_register( struct ev_loop *loop, ev_signal *w, int signum,
-                           void (*cb)(struct ev_loop *, struct ev_signal *, int))
-{
-  NT_LOOP_ASSURE(loop);
+void ntn_util_sig_register(ev_signal *w, int signum, void (*cb)(struct ev_loop *, struct ev_signal *, int)) {
   if (cb == NULL)
     cb = _sig_cb_unloopall;
   ev_signal_init(w, cb, signum);
-  ev_signal_start(loop, w);
+  // signal watchers are only supported in the default loop
+  ev_signal_start(ev_default_loop(0), w);
 }

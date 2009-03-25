@@ -24,8 +24,7 @@ int ntn_util_fd_setnonblock(int fd);
 void ntn_util_timer_unloopall(struct ev_loop *loop, double secs);
 
 // Register a signal handler
-void ntn_util_sig_register(struct ev_loop *loop, ev_signal *w, int signum,
-                          void (*cb)(struct ev_loop *, ev_signal *, int));
+void ntn_util_sig_register(ev_signal *w, int signum, void (*cb)(struct ev_loop *, ev_signal *, int));
 
 
 #endif

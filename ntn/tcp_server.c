@@ -6,16 +6,16 @@
 #include <netdb.h>
 
 
-static ntn_tcp_server *_tcp_server_default = NULL;
+static ntn_tcp_server *_tcp_server_shared = NULL;
 
 
-ntn_tcp_server *ntn_tcp_server_default() {
+ntn_tcp_server *ntn_tcp_server_shared() {
   static ntn_tcp_server server;
-  if (_tcp_server_default == NULL) {
+  if (_tcp_server_shared == NULL) {
     ntn_tcp_server_init(&server);
-    // calling ntn_tcp_server_init sets _tcp_server_default
+    // calling ntn_tcp_server_init sets _tcp_server_shared
   }
-  return _tcp_server_default;
+  return _tcp_server_shared;
 }
 
 
@@ -26,8 +26,8 @@ bool ntn_tcp_server_init(ntn_tcp_server *server) {
   server->accept_ev4 = NULL;
   server->accept_ev6 = NULL;
   server->accept_cb = NULL;
-  if (_tcp_server_default == NULL)
-    _tcp_server_default = server;
+  if (_tcp_server_shared == NULL)
+    _tcp_server_shared = server;
   return true;
 }
 
