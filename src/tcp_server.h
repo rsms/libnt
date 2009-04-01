@@ -6,40 +6,40 @@
 #include <stdbool.h>
 #include <ev.h>
 
-typedef struct ntn_tcp_server {
+typedef struct nt_tcp_server {
   struct ev_loop *loop;
-  ntn_tcp_socket *socket4;
-  ntn_tcp_socket *socket6;
+  nt_tcp_socket *socket4;
+  nt_tcp_socket *socket6;
   ev_io *accept_ev4;
   ev_io *accept_ev6;
   void (*accept_cb)(struct ev_loop *, struct ev_io *, int);
-} ntn_tcp_server;
+} nt_tcp_server;
 
-bool ntn_tcp_server_init(ntn_tcp_server *server);
-void ntn_tcp_server_destroy(ntn_tcp_server *server);
+bool nt_tcp_server_init(nt_tcp_server *server);
+void nt_tcp_server_destroy(nt_tcp_server *server);
 
 // Default server instance
-ntn_tcp_server *ntn_tcp_server_shared();
+nt_tcp_server *nt_tcp_server_shared();
 
 // Bind server to address and port
-bool ntn_tcp_server_bind(ntn_tcp_server *server, const char *addr, short port, bool ipv6_enabled, bool ipv6_only);
+bool nt_tcp_server_bind(nt_tcp_server *server, const char *addr, short port, bool ipv6_enabled, bool ipv6_only);
 
 // Start the server (adds the servers accept event to the loop)
-bool ntn_tcp_server_start(ntn_tcp_server *server);
+bool nt_tcp_server_start(nt_tcp_server *server);
 
 // Runs the servers loop. Possible flags:
 //  EVLOOP_NONBLOCK -- do not block/wait
 //  EVLOOP_ONESHOT  -- block *once* only
-#define ntn_tcp_server_run(server, int_flags) ev_loop((server)->loop, int_flags)
+#define nt_tcp_server_run(server, int_flags) ev_loop((server)->loop, int_flags)
 
 // Return the IPv6 or IPv4 address in a human readable format (not thread safe)
-const char *ntn_tcp_server_host(ntn_tcp_server *server);
+const char *nt_tcp_server_host(nt_tcp_server *server);
 
 // Copy a human readable string representing the host address of server (in v6 or v4 format).
-char *ntn_tcp_server_hostcpy(ntn_tcp_server *server, char *buf, size_t bufsize);
+char *nt_tcp_server_hostcpy(nt_tcp_server *server, char *buf, size_t bufsize);
 
 // Port of server socket in host byte order (a normal integer)
-uint16_t ntn_tcp_server_port(ntn_tcp_server *server);
+uint16_t nt_tcp_server_port(nt_tcp_server *server);
 
 
 #endif

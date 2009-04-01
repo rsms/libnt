@@ -6,20 +6,20 @@
 #include <netdb.h>
 
 
-static ntn_tcp_server *_tcp_server_shared = NULL;
+static nt_tcp_server *_tcp_server_shared = NULL;
 
 
-ntn_tcp_server *ntn_tcp_server_shared() {
-  static ntn_tcp_server server;
+nt_tcp_server *nt_tcp_server_shared() {
+  static nt_tcp_server server;
   if (_tcp_server_shared == NULL) {
-    ntn_tcp_server_init(&server);
-    // calling ntn_tcp_server_init sets _tcp_server_shared
+    nt_tcp_server_init(&server);
+    // calling nt_tcp_server_init sets _tcp_server_shared
   }
   return _tcp_server_shared;
 }
 
 
-bool ntn_tcp_server_init(ntn_tcp_server *server) {
+bool nt_tcp_server_init(nt_tcp_server *server) {
   server->loop = NULL;
   server->socket4 = NULL;
   server->socket6 = NULL;
@@ -32,13 +32,13 @@ bool ntn_tcp_server_init(ntn_tcp_server *server) {
 }
 
 
-void ntn_tcp_server_destroy(ntn_tcp_server *server) {
+void nt_tcp_server_destroy(nt_tcp_server *server) {
   if (server->socket4) {
-    ntn_tcp_socket_destroy(server->socket4);
+    nt_tcp_socket_destroy(server->socket4);
     free(server->socket4);
   }
   if (server->socket6) {
-    ntn_tcp_socket_destroy(server->socket6);
+    nt_tcp_socket_destroy(server->socket6);
     free(server->socket6);
   }
   if (server->accept_ev4) {
@@ -50,7 +50,7 @@ void ntn_tcp_server_destroy(ntn_tcp_server *server) {
 }
 
 
-bool ntn_tcp_server_bind(ntn_tcp_server *server, const char *addr, short port, bool ipv6_enabled, bool ipv6_only) {
+bool nt_tcp_server_bind(nt_tcp_server *server, const char *addr, short port, bool ipv6_enabled, bool ipv6_only) {
   struct addrinfo hints, *servinfo, *ptr;
   int rv;
   bool rb;
@@ -76,9 +76,9 @@ bool ntn_tcp_server_bind(ntn_tcp_server *server, const char *addr, short port, b
       // v6
       if (ipv6_enabled) {
         if (server->socket6 == NULL)
-          server->socket6 = (ntn_tcp_socket *)malloc(sizeof(ntn_tcp_socket));
-        rb = ntn_tcp_socket_bind(server->socket6, ptr, ipv6_only);
-        rb = rb && ntn_tcp_socket_listen(server->socket6, SOMAXCONN);
+          server->socket6 = (nt_tcp_socket *)malloc(sizeof(nt_tcp_socket));
+        rb = nt_tcp_socket_bind(server->socket6, ptr, ipv6_only);
+        rb = rb && nt_tcp_socket_listen(server->socket6, SOMAXCONN);
         if (!rb) {
           freeaddrinfo(servinfo);
           return false;
@@ -88,9 +88,9 @@ bool ntn_tcp_server_bind(ntn_tcp_server *server, const char *addr, short port, b
     else if(!ipv6_only) {
       // v4
       if (server->socket4 == NULL)
-        server->socket4 = (ntn_tcp_socket *)malloc(sizeof(ntn_tcp_socket));
-      rb = ntn_tcp_socket_bind(server->socket4, ptr, false);
-      rb = rb && ntn_tcp_socket_listen(server->socket4, SOMAXCONN);
+        server->socket4 = (nt_tcp_socket *)malloc(sizeof(nt_tcp_socket));
+      rb = nt_tcp_socket_bind(server->socket4, ptr, false);
+      rb = rb && nt_tcp_socket_listen(server->socket4, SOMAXCONN);
       if (!rb) {
         freeaddrinfo(servinfo);
         return false;
@@ -105,7 +105,7 @@ bool ntn_tcp_server_bind(ntn_tcp_server *server, const char *addr, short port, b
 
 
 // kinda like a non-blocking accept
-bool ntn_tcp_server_start(ntn_tcp_server *server) {
+bool nt_tcp_server_start(nt_tcp_server *server) {
   if ( (server->socket4 == NULL || server->socket4->fd == -1) 
        && (server->socket6 == NULL || server->socket6->fd == -1) )
   {
@@ -137,26 +137,26 @@ bool ntn_tcp_server_start(ntn_tcp_server *server) {
 }
 
 
-const char *ntn_tcp_server_host(ntn_tcp_server *server) {
+const char *nt_tcp_server_host(nt_tcp_server *server) {
   if (server->socket6)
-    return ntn_tcp_socket_host(server->socket6);
+    return nt_tcp_socket_host(server->socket6);
   else if (server->socket4)
-    return ntn_tcp_socket_host(server->socket4);
+    return nt_tcp_socket_host(server->socket4);
   return NULL;
 }
 
-char *ntn_tcp_server_hostcpy(ntn_tcp_server *server, char *buf, size_t bufsize) {
+char *nt_tcp_server_hostcpy(nt_tcp_server *server, char *buf, size_t bufsize) {
   if (server->socket6)
-    return ntn_tcp_socket_hostcpy(server->socket6, buf, bufsize);
+    return nt_tcp_socket_hostcpy(server->socket6, buf, bufsize);
   else if (server->socket4)
-    return ntn_tcp_socket_hostcpy(server->socket4, buf, bufsize);
+    return nt_tcp_socket_hostcpy(server->socket4, buf, bufsize);
   return NULL;
 }
 
-uint16_t ntn_tcp_server_port(ntn_tcp_server *server) {
+uint16_t nt_tcp_server_port(nt_tcp_server *server) {
   if (server->socket6)
-    return ntn_tcp_socket_port(server->socket6);
+    return nt_tcp_socket_port(server->socket6);
   else if (server->socket4)
-    return ntn_tcp_socket_port(server->socket4);
+    return nt_tcp_socket_port(server->socket4);
   return 0;
 }

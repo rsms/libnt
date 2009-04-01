@@ -1,8 +1,9 @@
-SOURCES=ex_echo.c src/util.c src/tcp_socket.c src/tcp_server.c
-CFLAGS=-c -Wall -DDEBUG=1 -I/opt/local/include
-LDFLAGS=-L/opt/local/lib -levent
+SOURCES=ex_obj.c
+EXECUTABLE=ex_obj
+#CC=gcc-4.2
+CFLAGS=-c -Wall -DDEBUG=1
+LDFLAGS=
 OBJECTS=$(SOURCES:.c=.o)
-EXECUTABLE=ex_echo
 
 all: $(SOURCES) $(EXECUTABLE)
 

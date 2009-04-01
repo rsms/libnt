@@ -6,39 +6,39 @@
 #include <netinet/tcp.h>
 
 
-bool ntn_tcp_socket_init(ntn_tcp_socket *socket) {
+bool nt_tcp_socket_init(nt_tcp_socket *socket) {
   socket->addr = NULL;
   socket->fd = -1;
   return true;
 }
 
 
-void ntn_tcp_socket_destroy(ntn_tcp_socket *socket) {
+void nt_tcp_socket_destroy(nt_tcp_socket *socket) {
   free(socket->addr);
 }
 
 
-const char *ntn_tcp_socket_host(ntn_tcp_socket *socket) {
+const char *nt_tcp_socket_host(nt_tcp_socket *socket) {
   static char *buf[100];
   buf[0] = '\0';
-  if(ntn_tcp_socket_hostcpy(socket, (char *)&buf, 100) == NULL) {
+  if(nt_tcp_socket_hostcpy(socket, (char *)&buf, 100) == NULL) {
     return NULL;
   }
   return (const char *)buf;
 }
 
 
-char *ntn_tcp_socket_hostcpy(ntn_tcp_socket *socket, char *buf, size_t bufsize) {
-  return ntn_util_sockaddr_hostcpy(socket->addr, buf, bufsize);
+char *nt_tcp_socket_hostcpy(nt_tcp_socket *socket, char *buf, size_t bufsize) {
+  return nt_util_sockaddr_hostcpy(socket->addr, buf, bufsize);
 }
 
 
-uint16_t ntn_tcp_socket_port(ntn_tcp_socket *socket) {
-  return ntn_util_sockaddr_port(socket->addr);
+uint16_t nt_tcp_socket_port(nt_tcp_socket *socket) {
+  return nt_util_sockaddr_port(socket->addr);
 }
 
 
-bool ntn_tcp_socket_bind(ntn_tcp_socket *sock, struct addrinfo *ptr, bool ipv6_only) {
+bool nt_tcp_socket_bind(nt_tcp_socket *sock, struct addrinfo *ptr, bool ipv6_only) {
   static const char on = 1;
   
   if ((sock->fd = socket(ptr->ai_family, ptr->ai_socktype, ptr->ai_protocol)) < 0) {
@@ -76,7 +76,7 @@ bool ntn_tcp_socket_bind(ntn_tcp_socket *sock, struct addrinfo *ptr, bool ipv6_o
 }
 
 
-bool ntn_tcp_socket_listen(ntn_tcp_socket *sock, int backlog) {
+bool nt_tcp_socket_listen(nt_tcp_socket *sock, int backlog) {
   if (listen(sock->fd, backlog) != 0) {
 		perror("listen");
     return false;

@@ -4,7 +4,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-char *ntn_util_sockaddr_hostcpy(struct sockaddr const *sa, char *buf, size_t bufsize) {
+char *nt_util_sockaddr_hostcpy(struct sockaddr const *sa, char *buf, size_t bufsize) {
   const void *ia;
   if (sa->sa_family == AF_INET) {
     struct sockaddr_in const *sin;
@@ -24,7 +24,7 @@ char *ntn_util_sockaddr_hostcpy(struct sockaddr const *sa, char *buf, size_t buf
   return buf;
 }
 
-uint16_t ntn_util_sockaddr_port(struct sockaddr const *sa) {
+uint16_t nt_util_sockaddr_port(struct sockaddr const *sa) {
   if (sa->sa_family == AF_INET) {
     struct sockaddr_in const *sin;
     sin = (struct sockaddr_in const *)sa;
@@ -37,7 +37,7 @@ uint16_t ntn_util_sockaddr_port(struct sockaddr const *sa) {
   }
 }
 
-const char *ntn_util_ev_strbackend(unsigned int backend) {
+const char *nt_util_ev_strbackend(unsigned int backend) {
   switch (backend) {
     case EVBACKEND_SELECT:
       return "select";
@@ -56,7 +56,7 @@ const char *ntn_util_ev_strbackend(unsigned int backend) {
 }
 
 // Set non-blocking flag for fd
-int ntn_util_fd_setnonblock(int fd) {
+int nt_util_fd_setnonblock(int fd) {
   int flags = fcntl(fd, F_GETFL);
   if (flags < 0)
     return flags;
@@ -70,7 +70,7 @@ static void _timer_cb_unloopall(struct ev_loop *loop, ev_timer *w, int revents) 
   ev_unloop(loop, EVUNLOOP_ALL);
 }
 
-void ntn_util_timer_unloopall(struct ev_loop *loop, double secs) {
+void nt_util_timer_unloopall(struct ev_loop *loop, double secs) {
   static ev_timer timeout_ev;
   NT_LOOP_ASSURE(loop);
   ev_timer_init(&timeout_ev, _timer_cb_unloopall, secs, 0.0);
@@ -81,7 +81,7 @@ static void _sig_cb_unloopall(struct ev_loop *loop, struct ev_signal *w, int rev
   ev_unloop(loop, EVUNLOOP_ALL);
 }
 
-void ntn_util_sig_register(ev_signal *w, int signum, void (*cb)(struct ev_loop *, struct ev_signal *, int)) {
+void nt_util_sig_register(ev_signal *w, int signum, void (*cb)(struct ev_loop *, struct ev_signal *, int)) {
   if (cb == NULL)
     cb = _sig_cb_unloopall;
   ev_signal_init(w, cb, signum);
