@@ -28,6 +28,7 @@
 #define nt_atomic_setptr(ptr, newval) \
   while(!nt_atomic_bool_compare_and_swapptr(ptr, nt_atomic_readptr(ptr), newval))
 
+
 /* ---- 32 ---- */
 
 #define nt_atomic_compare_and_swap32(ptr, oldval, newval) \
@@ -58,6 +59,5 @@ inline static int32_t nt_atomic_fetch_and_add32(volatile int32_t *ptr, int32_t n
 }
 
 #define nt_atomic_fetch_and_sub32(ptr, n) nt_atomic_fetch_and_add32(ptr, -(n))
-
 
 #endif

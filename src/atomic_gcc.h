@@ -26,7 +26,6 @@
 #define nt_atomic_setptr(ptr, newval) \
   while(!nt_atomic_bool_compare_and_swapptr(ptr, nt_atomic_readptr(ptr), newval))
 
-
 /* ---- 32 ---- */
 
 // compare and swap.

@@ -26,7 +26,7 @@ typedef struct nt_obj {
  * usage:
  *
  * struct my_obj {
- *   NTREF_HEAD
+ *   NT_OBJ_HEAD
  *   int my_foo;
  *   char *my_bar;
  * }
@@ -48,7 +48,7 @@ typedef struct nt_obj {
 #define nt_obj_get_refcount(obj) nt_atomic_read32(&((obj)->refcount))
 
 /**
- * ntref_init - initialize object.
+ * nt_obj_init - initialize object.
  * @obj: object in question.
  */
 inline static void nt_obj_init(nt_obj *obj, void (*destructor)(nt_obj *obj)) {
@@ -57,10 +57,9 @@ inline static void nt_obj_init(nt_obj *obj, void (*destructor)(nt_obj *obj)) {
 }
 
 /**
- * ntref_get - increment refcount for object.
+ * nt_obj_get - increment refcount for object.
  * @obj: object.
  */
-
 inline static void nt_obj_get(nt_obj *obj) {
 #if !defined(NT_OBJ_REFCOUNT_CHECKS) || NT_OBJ_REFCOUNT_CHECKS
   if (nt_atomic_inc_and_fetch32(&obj->refcount) == 1)
@@ -93,5 +92,31 @@ inline static int nt_obj_put(nt_obj *obj) {
   }
   return 0;
 }
+
+/**
+ * nt_obj_swap - replace @obj with @newobj.
+ *
+ * This is an atomic operation and takes care of decreasing and increasing
+ * reference counts.
+ *
+ * Returns the previous value of @obj
+ */
+inline static nt_obj *nt_obj_swap(nt_obj * volatile *obj, nt_obj *newobj) {
+  nt_obj *oldobj;
+  if (*obj != newobj) {
+    oldobj = (nt_obj *)nt_atomic_fetch_and_setptr((void * volatile *)obj, (void *)newobj);
+    if (*obj != oldobj) {
+      if (oldobj) {
+        nt_obj_put(oldobj);
+      }
+      if (newobj) {
+        nt_obj_get(newobj);
+      }
+    }
+    return oldobj;
+  }
+  return *obj;
+}
+
 
 #endif /* _NT_OBJ_H_ */
