@@ -1,3 +1,6 @@
+/**
+ * Atomic memory access and operations
+ */
 #ifndef _NT_ATOMIC_H_
 #define _NT_ATOMIC_H_
 
