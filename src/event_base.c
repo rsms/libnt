@@ -1,4 +1,5 @@
 #include "event_base.h"
+#include "atomic.h"
 
 static void _dealloc(nt_event_base *self) {
   if (self->ev_base)
@@ -61,8 +62,7 @@ bool nt_event_base_add_socket(nt_event_base *self,
 
 
 /* helper used by nt_event_base_add_server */
-static inline struct event *_mk_add_accept_ev(nt_event_base *base,
-                                              nt_tcp_server *server,
+static inline struct event *_mk_add_accept_ev(nt_event_base_server *bs,
                                               nt_tcp_socket *sock,
                                               const struct timeval *timeout )
 {
@@ -74,13 +74,15 @@ static inline struct event *_mk_add_accept_ev(nt_event_base *base,
     /* errno == ENOMEM */
     return NULL;
   }
-  success = nt_event_base_add_socket( base, sock, ev, EV_READ|EV_PERSIST, timeout,
-                                      (void (*)(int, short, void *))server->on_accept,
-                                      (void *)server );
+  
+  success = nt_event_base_add_socket( bs->base, sock, ev, EV_READ|EV_PERSIST, timeout,
+                                      (void (*)(int, short, void *))bs->server->on_accept,
+                                      (void *)bs );
   if (!success) {
     free(ev);
     ev = NULL;
   }
+  
   return ev;
 }
 
@@ -88,6 +90,7 @@ static inline struct event *_mk_add_accept_ev(nt_event_base *base,
 bool nt_event_base_add_server(nt_event_base *base, nt_tcp_server *server, const struct timeval *timeout) 
 {
   struct event *ev;
+  nt_event_base_server *bs;
   size_t num_sockets = (server->socket4 ? 1 : 0) + (server->socket6 ? 1 : 0);
   
   if (num_sockets == 0) {
@@ -96,23 +99,31 @@ bool nt_event_base_add_server(nt_event_base *base, nt_tcp_server *server, const 
   }
   
   // Check if we have space for more accept events
-  if ( (server->n_accept_evs + num_sockets) > NT_TCP_SERVER_MAX_ACCEPT_EVS ) {
+  if ( (nt_atomic_read32(&server->n_accept_evs) + num_sockets) > NT_TCP_SERVER_MAX_ACCEPT_EVS ) {
     warnx("nt_tcp_server_register: too many accept events");
     return false;
   }
   
+  // base+server conduit
+  bs = (nt_event_base_server *)malloc(sizeof(nt_event_base_server));
+  bs->base = base;
+  bs->server = server;
+  server->v_bs[nt_atomic_fetch_and_inc32(&server->n_bs)] = (void *)bs;
+  
   // Register IPv4 socket
   if (server->socket4) {
-    if ((ev = _mk_add_accept_ev(base, server, server->socket4, timeout)) == NULL)
+    if ((ev = _mk_add_accept_ev(bs, server->socket4, timeout)) == NULL)
       return false;
-    server->v_accept_evs[server->n_accept_evs++] = ev;
+    // todo: locking server->*_accept_evs
+    server->v_accept_evs[nt_atomic_fetch_and_inc32(&server->n_accept_evs)] = ev;
   }
   
   // Register IPv4 socket
   if (server->socket6) {
-    if ((ev = _mk_add_accept_ev(base, server, server->socket6, timeout)) == NULL)
+    if ((ev = _mk_add_accept_ev(bs, server->socket6, timeout)) == NULL)
       return false;
-    server->v_accept_evs[server->n_accept_evs++] = ev;
+    // todo: locking server->*_accept_evs
+    server->v_accept_evs[nt_atomic_fetch_and_inc32(&server->n_accept_evs)] = ev;
   }
   
   return true;

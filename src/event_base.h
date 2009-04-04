@@ -11,6 +11,11 @@ typedef struct nt_event_base {
   struct event_base *ev_base;
 } nt_event_base;
 
+typedef struct nt_event_base_server {
+  nt_event_base *base;
+  nt_tcp_server *server;
+} nt_event_base_server;
+
 /**
   Create a new nt_event_base
 */

@@ -3,18 +3,23 @@
 #include <stdio.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <err.h>
 
-char *nt_util_sockaddr_hostcpy(struct sockaddr const *sa, char *buf, size_t bufsize) {
+char *nt_util_sockaddr_hostcpy(const struct sockaddr *sa, char *buf, size_t bufsize) {
   const void *ia;
   if (sa->sa_family == AF_INET) {
     struct sockaddr_in const *sin;
     sin = (struct sockaddr_in const *)sa;
     ia = &sin->sin_addr;
   }
-  else {
+  else if (sa->sa_family == AF_INET6) {
     struct sockaddr_in6 const *sin;
     sin = (struct sockaddr_in6 const *)sa;
     ia = &sin->sin6_addr;
+  }
+  else {
+    warnx("unsupported sa_family: %d", sa->sa_family);
+    return NULL;
   }
   
   if (inet_ntop(sa->sa_family, ia, buf, bufsize-1) == NULL) {
@@ -58,11 +63,15 @@ uint16_t nt_util_sockaddr_port(struct sockaddr const *sa) {
 // Set non-blocking flag for fd
 int nt_util_fd_setnonblock(int fd) {
   int flags = fcntl(fd, F_GETFL);
-  if (flags < 0)
-    return flags;
-  flags |= O_NONBLOCK;
-  if (fcntl(fd, F_SETFL, flags) < 0) 
+  if (flags < 0) {
+    perror("fcntl");
     return -1;
+  }
+  flags |= O_NONBLOCK;
+  if (fcntl(fd, F_SETFL, flags) < 0) {
+    perror("fcntl");
+    return -1;
+  }
   return 0;
 }
 

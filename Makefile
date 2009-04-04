@@ -1,4 +1,4 @@
-SOURCES=ex_echo.c src/util.c src/tcp_socket.c src/tcp_server.c src/event_base.c
+SOURCES=ex_echo.c src/util.c src/tcp_socket.c src/event_base.c src/tcp_server.c src/tcp_client.c
 EXECUTABLE=build/ex_echo
 
 CFLAGS=-c -Wall -DDEBUG=1 -I/opt/local/include

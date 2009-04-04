@@ -8,11 +8,6 @@
 #include <err.h> /* warnx() */
 
 
-static void _on_accept(int fd, short ev, nt_tcp_server *self) {
-  // todo
-}
-
-
 static void _dealloc(nt_tcp_server *self) {
   size_t i;
   struct event *ev;
@@ -26,6 +21,11 @@ static void _dealloc(nt_tcp_server *self) {
     }
   }
   
+  // free bs tuples
+  for (i=0; i<self->n_bs; i++) {
+    free(self->v_bs[i]);
+  }
+  
   // release sockets
   nt_xrelease(self->socket4);
   nt_xrelease(self->socket6);
@@ -35,7 +35,7 @@ static void _dealloc(nt_tcp_server *self) {
 }
 
 
-nt_tcp_server *nt_tcp_server_new() {
+nt_tcp_server *nt_tcp_server_new(nt_tcp_server_on_accept *on_accept) {
   int i;
   nt_tcp_server *self;
   
@@ -49,14 +49,18 @@ nt_tcp_server *nt_tcp_server_new() {
   self->socket6 = NULL;
   
   // Callbacks
-  self->on_accept = &_on_accept;
+  self->on_accept = on_accept;
   
-  // Set number of accept events to zero
+  // Init list of accept events
   self->n_accept_evs = 0U;
-  
-  // Zero out the accept event pointers
   for (i=0; i<NT_TCP_SERVER_MAX_ACCEPT_EVS; i++) {
     self->v_accept_evs[i] = NULL;
+  }
+  
+  // Init list of bs tuples 
+  self->n_bs = 0U;
+  for (i=0; i<NT_TCP_SERVER_MAX_ACCEPT_EVS; i++) {
+    self->v_bs[i] = NULL;
   }
   
   return self;
@@ -64,12 +68,18 @@ nt_tcp_server *nt_tcp_server_new() {
 
 
 bool nt_tcp_server_bind(nt_tcp_server *server, const char *addr, short port, 
-                        bool ipv6_enabled, bool ipv6_only)
+                        bool ipv6_enabled, bool ipv6_only, bool blocking)
 {
   struct addrinfo hints, *servinfo, *ptr;
   int rv;
   bool rb;
   char strport[12];
+  
+  // Check if on_accept is set
+  if (server->on_accept == NULL) {
+    warnx("nt_tcp_server_bind: server->on_accept is NULL");
+    return false;
+  }
   
   // Setup getaddrinfo hints
   memset(&hints, 0, sizeof hints);
@@ -91,8 +101,8 @@ bool nt_tcp_server_bind(nt_tcp_server *server, const char *addr, short port,
       // v6
       if (ipv6_enabled) {
         if (server->socket6 == NULL)
-          server->socket6 = (nt_tcp_socket *)malloc(sizeof(nt_tcp_socket));
-        rb = nt_tcp_socket_bind(server->socket6, ptr, ipv6_only);
+          server->socket6 = nt_tcp_socket_new(-1);
+        rb = nt_tcp_socket_bind(server->socket6, ptr, ipv6_only, blocking);
         rb = rb && nt_tcp_socket_listen(server->socket6, SOMAXCONN);
         if (!rb) {
           freeaddrinfo(servinfo);
@@ -103,8 +113,8 @@ bool nt_tcp_server_bind(nt_tcp_server *server, const char *addr, short port,
     else if(!ipv6_only) {
       // v4
       if (server->socket4 == NULL)
-        server->socket4 = (nt_tcp_socket *)malloc(sizeof(nt_tcp_socket));
-      rb = nt_tcp_socket_bind(server->socket4, ptr, false);
+        server->socket4 = nt_tcp_socket_new(-1);
+      rb = nt_tcp_socket_bind(server->socket4, ptr, false, blocking);
       rb = rb && nt_tcp_socket_listen(server->socket4, SOMAXCONN);
       if (!rb) {
         freeaddrinfo(servinfo);

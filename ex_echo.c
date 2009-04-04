@@ -1,20 +1,35 @@
 #include "src/event_base.h"
 #include "src/tcp_server.h"
+#include "src/tcp_client.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <event.h>
 
-/*static void on_client_accepted(nt_tcp_server *server, int fd, short ev) {
+static void on_client_connected(nt_tcp_client *client) {
+  printf("client %p connected from %s\n", client, nt_tcp_socket_host(client->socket));
 }
 
-static void on_client_disconnected(struct ev_loop *loop, struct ev_signal *w, int revents) {
-  printf("client disconnected\n");
+static void on_client_disconnected(nt_tcp_client *client) {
+  printf("client %p disconnected\n", client);
+  nt_release(client);
 }
 
-static void on_client_error(struct bufferevent *bev, short what, void *arg) {
-  printf("client error\n");
-}*/
+static void on_client_error(struct bufferevent *bev, short what, nt_tcp_client *client) {
+  if (what & EVBUFFER_EOF) {
+    on_client_disconnected(client);
+  }
+  else {
+    printf("client %p error\n", client);
+  }
+  nt_release(client);
+}
+
+static void on_accept(int fd, short ev, nt_event_base_server *bs) {
+  nt_tcp_client *client;
+  if ( (client = nt_tcp_client_accept(bs, fd, NULL, NULL, &on_client_error)) )
+    on_client_connected(client);
+}
 
 
 int main(int argc, char * const *argv) {
@@ -24,6 +39,7 @@ int main(int argc, char * const *argv) {
   int port = 8080, rc;
   bool ipv6_enabled = true;
   bool ipv6_only = false;
+  bool blocking = false;
   
   // parse arguments
   if (argc > 1)
@@ -34,30 +50,25 @@ int main(int argc, char * const *argv) {
   // ------------ server: ------------
   
   // Create server
-  server = nt_tcp_server_new();
-  
-  // Set callbacks
-  //server->on_client_accepted = &on_client_accepted;
-  //server->on_client_disconnected = &on_client_disconnected;
-  //server->on_client_error = &on_client_error;
+  server = nt_tcp_server_new(&on_accept);
   
   // bind
-  if (!nt_tcp_server_bind(server, addr, port, ipv6_enabled, ipv6_only))
+  if (!nt_tcp_server_bind(server, addr, port, ipv6_enabled, ipv6_only, blocking))
     exit(1);
   
   // print some info to stdout
   if (server->socket4) {
-    printf("bound to %s:%d\n", nt_tcp_socket_host(server->socket4),
+    printf("listening on %s:%d\n", nt_tcp_socket_host(server->socket4),
       nt_tcp_socket_port(server->socket4));
   }
   if (server->socket6) {
-    printf("bound to [%s]:%d\n", nt_tcp_socket_host(server->socket6),
+    printf("listening on [%s]:%d\n", nt_tcp_socket_host(server->socket6),
       nt_tcp_socket_port(server->socket6));
   }
   
   // ------------ base: ------------
   
-  base = nt_event_base_default();
+  base = nt_event_base_new();
   
   // Add our server
   if (!nt_event_base_add_server(base, server, NULL))
@@ -70,7 +81,10 @@ int main(int argc, char * const *argv) {
   else if (rc > 0)
     warnx("nt_event_base_loop: no events");
   
-  // release our reference created by nt_tcp_server_new
+  // release our reference to base
+  nt_release(base);
+  
+  // release our reference to server
   nt_release(server);
   
   return 0;

@@ -6,6 +6,7 @@
 #include "tcp_socket.h"
 
 #include <stdbool.h>
+#include <stdint.h>
 #include <event.h>
 
 /**
@@ -20,12 +21,14 @@
 */
 #define NT_TCP_SERVER_MAX_ACCEPT_EVS 32
 
+struct nt_event_base;
+struct nt_event_base_server;
 struct nt_tcp_server;
 
 /**
   Callback for when a client connection is pending an accept() call.
 */
-typedef void (nt_tcp_server_on_accept)(int client_fd, short ev, struct nt_tcp_server *server);
+typedef void (nt_tcp_server_on_accept)(int fd, short ev, struct nt_event_base_server *bs);
 
 /**
   nt_tcp_server object.
@@ -41,20 +44,24 @@ typedef struct nt_tcp_server {
   nt_tcp_server_on_accept *on_accept;
   
   /* Internal use only */
-  size_t n_accept_evs;
+  volatile int32_t n_accept_evs;
   struct event *v_accept_evs[NT_TCP_SERVER_MAX_ACCEPT_EVS];
+  volatile int32_t n_bs;
+  struct nt_event_base_server *v_bs[NT_TCP_SERVER_MAX_ACCEPT_EVS];
 } nt_tcp_server;
 
 /**
   Create a new nt_tcp_server
+  
+  @param  on_accept  accept handler
 */
-nt_tcp_server *nt_tcp_server_new();
+nt_tcp_server *nt_tcp_server_new(nt_tcp_server_on_accept *on_accept);
 
 /**
   Bind server to address and port
 */
 bool nt_tcp_server_bind(nt_tcp_server *server, const char *addr, short port,
-                        bool ipv6_enabled, bool ipv6_only);
+                        bool ipv6_enabled, bool ipv6_only, bool blocking);
 
 /**
   Runs the servers loop. Possible flags:
