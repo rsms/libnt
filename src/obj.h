@@ -1,12 +1,14 @@
 #ifndef _NT_OBJ_H_
 #define _NT_OBJ_H_
 
-#if !defined(NT_OBJ_REFCOUNT_CHECKS) || NT_OBJ_REFCOUNT_CHECKS
-  #include <err.h> /* warnx() */
-#endif
-
 #include "atomic.h"
 #include <stdint.h>
+#include <stdlib.h>
+#include <err.h> /* warnx() */
+
+struct nt_obj *obj;
+
+typedef void (nt_obj_destructor)(struct nt_obj *obj);
 
 typedef struct nt_obj {
   /* refcount - the actual reference counter */
@@ -15,12 +17,29 @@ typedef struct nt_obj {
   /* destructor - pointer to the function that will clean up the object when
    *              the last reference to the object is released. Required.
    */
-  void (* volatile destructor)(struct nt_obj *obj);
+  volatile nt_obj_destructor *destructor;
 } nt_obj;
 
 /* Convenience macros with type casting */
-#define nt_getref(obj) nt_obj_get((nt_obj *)(obj))
-#define nt_putref(obj) nt_obj_put((nt_obj *)(obj))
+/* get/put naming */
+#define nt_getref(obj)  nt_obj_get((nt_obj *)(obj))
+#define nt_putref(obj)  nt_obj_put((nt_obj *)(obj))
+/* inc/dec naming */
+#define nt_incref(obj)  nt_obj_get((nt_obj *)(obj))
+#define nt_decref(obj)  nt_obj_put((nt_obj *)(obj))
+/* retain/release naming */
+#define nt_retain(obj)  nt_obj_get((nt_obj *)(obj))
+#define nt_release(obj) nt_obj_put((nt_obj *)(obj))
+
+/* get/put naming */
+#define nt_getref(obj)  nt_obj_get((nt_obj *)(obj))
+#define nt_putref(obj)  nt_obj_put((nt_obj *)(obj))
+/* inc/dec naming */
+#define nt_incref(obj)  nt_obj_get((nt_obj *)(obj))
+#define nt_decref(obj)  nt_obj_put((nt_obj *)(obj))
+/* retain/release naming */
+#define nt_xretain(obj)  ((obj) ? nt_obj_get((nt_obj *)(obj)) : (void)(0))
+#define nt_xrelease(obj) ((obj) ? nt_obj_put((nt_obj *)(obj)) : (void)(0))
 
 /* Head definition
  * usage:
@@ -33,6 +52,7 @@ typedef struct nt_obj {
  *
  */
 #define NT_OBJ_HEAD nt_obj ntobj;
+
 
 /**
  * nt_obj_set_refcount - set refcount to requested number.
@@ -48,12 +68,24 @@ typedef struct nt_obj {
 #define nt_obj_get_refcount(obj) nt_atomic_read32(&((obj)->refcount))
 
 /**
+ * nt_obj_set_destructor - set destructor.
+ * @obj: object in question.
+ * @destructor: pointer to a destructor.
+ */
+#define nt_obj_set_destructor(obj, destructor) \
+  nt_atomic_setptr((void * volatile *)&( ((nt_obj *)(obj))->destructor ), \
+                   (nt_obj_destructor *)(destructor))
+
+/**
  * nt_obj_init - initialize object.
  * @obj: object in question.
  */
-inline static void nt_obj_init(nt_obj *obj, void (*destructor)(nt_obj *obj)) {
+inline static void nt_obj_init(nt_obj *obj, nt_obj_destructor *destructor) {
   nt_obj_set_refcount(obj, 1);
-  nt_atomic_setptr((void * volatile *)&((obj)->destructor), destructor);
+  if (!destructor) {
+    destructor = (nt_obj_destructor *)&free;
+  }
+  nt_obj_set_destructor(obj, destructor);
 }
 
 /**

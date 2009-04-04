@@ -6,15 +6,25 @@
 #include <netinet/tcp.h>
 
 
-bool nt_tcp_socket_init(nt_tcp_socket *socket) {
-  socket->addr = NULL;
-  socket->fd = -1;
-  return true;
+static void _dealloc(nt_tcp_socket *self) {
+  if (self->addr)
+    free(self->addr);
+  free(self);
 }
 
 
-void nt_tcp_socket_destroy(nt_tcp_socket *socket) {
-  free(socket->addr);
+nt_tcp_socket *nt_tcp_socket_new(struct sockaddr *addr, int fd) {
+  nt_tcp_socket *self;
+  
+  if ( !(self = (nt_tcp_socket *)malloc(sizeof(nt_tcp_socket))) )
+    return NULL;
+  
+  nt_obj_init((nt_obj *)self, (nt_obj_destructor *)_dealloc);
+  
+  self->addr = addr;
+  self->fd = fd;
+  
+  return self;
 }
 
 

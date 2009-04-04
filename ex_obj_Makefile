@@ -1,5 +1,5 @@
 SOURCES=ex_obj.c
-EXECUTABLE=ex_obj
+EXECUTABLE=build/ex_obj
 #CC=gcc-4.2
 CFLAGS=-c -Wall -DDEBUG=1
 LDFLAGS=
@@ -8,6 +8,7 @@ OBJECTS=$(SOURCES:.c=.o)
 all: $(SOURCES) $(EXECUTABLE)
 
 $(EXECUTABLE): $(OBJECTS)
+	mkdir -p build
 	$(CC) $(LDFLAGS) $(OBJECTS) -o $@
 
 .c.o:

@@ -1,18 +1,19 @@
 #ifndef NTN_TCP_SOCKET_H
 #define NTN_TCP_SOCKET_H
 
+#include "obj.h"
 #include <stdbool.h>
 #include <stdint.h>
 #include <netinet/in.h>
 #include <netdb.h>
 
 typedef struct nt_tcp_socket {
+  NT_OBJ_HEAD
   struct sockaddr *addr;
   int fd;
 } nt_tcp_socket;
 
-bool nt_tcp_socket_init(nt_tcp_socket *sock);
-void nt_tcp_socket_destroy(nt_tcp_socket *sock);
+nt_tcp_socket *nt_tcp_socket_new(struct sockaddr *addr, int fd);
 
 // Return a human readable string representing the host address of socket.
 // This is not thread safe (See nt_tcp_socket_hostcpy() for a thread safe version).

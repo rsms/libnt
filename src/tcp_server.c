@@ -5,52 +5,67 @@
 #include <netinet/in.h>
 #include <netdb.h>
 
+#include <err.h> /* warnx() */
 
-static nt_tcp_server *_tcp_server_shared = NULL;
 
-
-nt_tcp_server *nt_tcp_server_shared() {
-  static nt_tcp_server server;
-  if (_tcp_server_shared == NULL) {
-    nt_tcp_server_init(&server);
-    // calling nt_tcp_server_init sets _tcp_server_shared
-  }
-  return _tcp_server_shared;
+static void _on_accept(int fd, short ev, nt_tcp_server *self) {
+  // todo
 }
 
 
-bool nt_tcp_server_init(nt_tcp_server *server) {
-  server->loop = NULL;
-  server->socket4 = NULL;
-  server->socket6 = NULL;
-  server->accept_ev4 = NULL;
-  server->accept_ev6 = NULL;
-  server->accept_cb = NULL;
-  if (_tcp_server_shared == NULL)
-    _tcp_server_shared = server;
-  return true;
+static void _dealloc(nt_tcp_server *self) {
+  size_t i;
+  struct event *ev;
+  
+  // disable and free events
+  for (i=0; i<self->n_accept_evs; i++) {
+    ev = self->v_accept_evs[i];
+    if (ev) {
+      event_del(ev);
+      free(ev);
+    }
+  }
+  
+  // release sockets
+  nt_xrelease(self->socket4);
+  nt_xrelease(self->socket6);
+  
+  // finally free ourselves
+  free(self);
 }
 
 
-void nt_tcp_server_destroy(nt_tcp_server *server) {
-  if (server->socket4) {
-    nt_tcp_socket_destroy(server->socket4);
-    free(server->socket4);
+nt_tcp_server *nt_tcp_server_new() {
+  int i;
+  nt_tcp_server *self;
+  
+  if ( !(self = (nt_tcp_server *)malloc(sizeof(nt_tcp_server))) )
+    return NULL;
+  
+  nt_obj_init((nt_obj *)self, (nt_obj_destructor *)_dealloc);
+  
+  // Listening sockets
+  self->socket4 = NULL;
+  self->socket6 = NULL;
+  
+  // Callbacks
+  self->on_accept = &_on_accept;
+  
+  // Set number of accept events to zero
+  self->n_accept_evs = 0U;
+  
+  // Zero out the accept event pointers
+  for (i=0; i<NT_TCP_SERVER_MAX_ACCEPT_EVS; i++) {
+    self->v_accept_evs[i] = NULL;
   }
-  if (server->socket6) {
-    nt_tcp_socket_destroy(server->socket6);
-    free(server->socket6);
-  }
-  if (server->accept_ev4) {
-    free(server->accept_ev4);
-  }
-  if (server->accept_ev6) {
-    free(server->accept_ev6);
-  }
+  
+  return self;
 }
 
 
-bool nt_tcp_server_bind(nt_tcp_server *server, const char *addr, short port, bool ipv6_enabled, bool ipv6_only) {
+bool nt_tcp_server_bind(nt_tcp_server *server, const char *addr, short port, 
+                        bool ipv6_enabled, bool ipv6_only)
+{
   struct addrinfo hints, *servinfo, *ptr;
   int rv;
   bool rb;
@@ -101,39 +116,6 @@ bool nt_tcp_server_bind(nt_tcp_server *server, const char *addr, short port, boo
   freeaddrinfo(servinfo);
   
   return (server->socket4 || server->socket6);
-}
-
-
-// kinda like a non-blocking accept
-bool nt_tcp_server_start(nt_tcp_server *server) {
-  if ( (server->socket4 == NULL || server->socket4->fd == -1) 
-       && (server->socket6 == NULL || server->socket6->fd == -1) )
-  {
-    fprintf(stderr, "server not bound\n");
-    return false;
-  }
-  
-  if (server->accept_cb == NULL) {
-    fprintf(stderr, "server->accept_cb is NULL\n");
-    return false;
-  }
-  
-  NT_LOOP_ASSURE(server->loop);
-  
-  if (server->socket4) {
-    if (server->accept_ev4 == NULL)
-      server->accept_ev4 = malloc(sizeof(ev_io));
-    ev_io_init(server->accept_ev4, server->accept_cb, server->socket4->fd, EV_READ);
-    ev_io_start(server->loop, server->accept_ev4);
-  }
-  if (server->socket6) {
-    if (server->accept_ev6 == NULL)
-      server->accept_ev6 = malloc(sizeof(ev_io));
-    ev_io_init(server->accept_ev6, server->accept_cb, server->socket6->fd, EV_READ);
-    ev_io_start(server->loop, server->accept_ev6);
-  }
-  
-  return true;
 }
 
 

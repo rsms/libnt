@@ -37,7 +37,7 @@ uint16_t nt_util_sockaddr_port(struct sockaddr const *sa) {
   }
 }
 
-const char *nt_util_ev_strbackend(unsigned int backend) {
+/*const char *nt_util_ev_strbackend(unsigned int backend) {
   switch (backend) {
     case EVBACKEND_SELECT:
       return "select";
@@ -53,7 +53,7 @@ const char *nt_util_ev_strbackend(unsigned int backend) {
       return "port";
   }
   return "?";
-}
+}*/
 
 // Set non-blocking flag for fd
 int nt_util_fd_setnonblock(int fd) {
@@ -66,7 +66,7 @@ int nt_util_fd_setnonblock(int fd) {
   return 0;
 }
 
-static void _timer_cb_unloopall(struct ev_loop *loop, ev_timer *w, int revents) {
+/*static void _timer_cb_unloopall(struct ev_loop *loop, ev_timer *w, int revents) {
   ev_unloop(loop, EVUNLOOP_ALL);
 }
 
@@ -87,4 +87,4 @@ void nt_util_sig_register(ev_signal *w, int signum, void (*cb)(struct ev_loop *,
   ev_signal_init(w, cb, signum);
   // signal watchers are only supported in the default loop
   ev_signal_start(ev_default_loop(0), w);
-}
+}*/
