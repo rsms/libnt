@@ -17,7 +17,7 @@
 // if the current value of *ptr is oldval, then write newval into *ptr.
 // returns true if the comparison is successful and newval was written.
 #define nt_atomic_bool_compare_and_swapptr(ptr, oldval, newval) \
-  __sync_bool_compare_and_swap(ptr, oldval, newval)
+  __sync_bool_compare_and_swap((intptr_t)ptr, (intptr_t)oldval, (intptr_t *)newval)
 
 // read pointer
 #define nt_atomic_readptr(ptr) __sync_fetch_and_add(ptr, 0)

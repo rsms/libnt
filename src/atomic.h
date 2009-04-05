@@ -14,7 +14,6 @@
   #error Unsupported compiler/platform
 #endif
 
-
 // increment by 1 and return the previous value
 #define nt_atomic_fetch_and_inc32(ptr) nt_atomic_fetch_and_add32(ptr, 1)
 
@@ -50,5 +49,25 @@ inline static int32_t nt_atomic_fetch_and_set32(volatile int32_t *ptr, int32_t n
   } while(!nt_atomic_bool_compare_and_swap32(ptr, oldval, newval));
   return oldval;
 }
+
+/**
+  atomic_synchronize_io - ensures orderly load and store operations to
+  noncached memory mapped I/O devices.
+  
+  Executes the eieio instruction on PowerPC processors.
+*/
+inline static void atomic_synchronize_io(void) {
+#if defined(__ppc__)
+  __asm__("eieio");
+#endif
+}
+
+/*#if defined(__APPLE__)
+  // Caution: in OS X v <=10.4, only PPC was supported
+  //          thus maybe we should check versions here?
+  #include "atomic_queue_osx.h"
+#else*/
+  #include "atomic_queue.h"
+//#endif
 
 #endif
