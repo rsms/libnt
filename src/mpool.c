@@ -1151,10 +1151,9 @@ int	nt_mpool_close(nt_mpool_t *mp_p)
     }
     size = SIZE_OF_PAGES(mp_p, PAGES_IN_SIZE(mp_p, sizeof(nt_mpool_t)));
     
+    UNLOCK_POOL(mp_p);
     (void)munmap((caddr_t)addr, size);
   }
-  
-  UNLOCK_POOL(mp_p);
   
   return final;
 }

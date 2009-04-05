@@ -72,8 +72,8 @@
 					 ((char *)(block_p) + \
 					  sizeof(nt_mpool_block_t)))
 
-#define LOCK_POOL(mp_p) nt_spinlock_lock(&((mp_p)->lock))
-#define UNLOCK_POOL(mp_p) nt_spinlock_unlock(&((mp_p)->lock))
+#define LOCK_POOL(mp_p) nt_spinlock_lock(&(((nt_mpool_t *)(mp_p))->lock))
+#define UNLOCK_POOL(mp_p) nt_spinlock_unlock(&(((nt_mpool_t *)(mp_p))->lock))
 /* if __SMP__ is defined, nt_spinlock_* have no effect, so no need to think
    about stuff like that in a header file like this :) */
 
