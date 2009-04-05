@@ -77,7 +77,7 @@ int testq() {
   
   // -------------
   
-  nt_atomic_queue_head q2 = NT_ATOMIC_QUEUE_INIT;
+  nt_atomic_queue q2 = NT_ATOMIC_QUEUE_INIT;
   
   nt_atomic_enqueue(&q2, &fred, offsetof(elem_t,link));
   nt_atomic_enqueue(&q2, &mary, offsetof(elem_t,link));

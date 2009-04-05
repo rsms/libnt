@@ -17,7 +17,7 @@ LIBSDIR = -L/opt/local/lib
 
 CC=gcc
 CFLAGS+=-Wall -include src/_prefix.h
-CFLAGS+=-std=gnu99
+CFLAGS+=-std=c99
 CFLAGS+=-DDEBUG=1
 CFLAGS += -I/opt/local/include
 TOOL_CFLAGS = -Lbuild/libs -lnt -levent
@@ -37,11 +37,11 @@ examples: ex_echo
 test: test_atomic_queue
 
 ex_echo: lib build/libs/libnt.dylib examples/ex_echo.c
-	$(CC) $(CFLAGS) $(TOOL_CFLAGS) $(LIBSDIR) examples/ex_echo.c -o examples/ex_echo
+	$(CC) $(CFLAGS) $(TOOL_CFLAGS) $(LIBSDIR) examples/ex_echo.c -o build/example_echo
 
 test_atomic_queue: lib build/libs/libnt.dylib tests/atomic_queue.c
-	$(CC) $(CFLAGS) $(TOOL_CFLAGS) $(LIBSDIR) tests/atomic_queue.c -o tests/atomic_queue
-	./tests/atomic_queue
+	$(CC) $(CFLAGS) $(TOOL_CFLAGS) $(LIBSDIR) tests/atomic_queue.c -o build/test_atomic_queue
+	./build/test_atomic_queue
 
 ${DIRS}:
 	@mkdir $@

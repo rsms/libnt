@@ -3,6 +3,8 @@
 #include <string.h>
 #include <assert.h>
 
+//#include <stdio.h>
+
 int main(int argc, char * const *argv) {
   typedef struct elem {
     long data1;
@@ -10,30 +12,37 @@ int main(int argc, char * const *argv) {
     int data2;
   } elem_t;
   
-  elem_t fred, mary, *p;
+  elem_t fred={1L,NULL,1}, mary={2L,NULL,2}, *p;
+  nt_atomic_queue q = NT_ATOMIC_QUEUE_INIT;
   
-  nt_atomic_queue_head q2 = NT_ATOMIC_QUEUE_INIT;
+  nt_atomic_enqueue(&q, &fred, offsetof(elem_t,link));
+  nt_atomic_enqueue(&q, &mary, offsetof(elem_t,link));
   
-  nt_atomic_enqueue(&q2, &fred, offsetof(elem_t,link));
-  nt_atomic_enqueue(&q2, &mary, offsetof(elem_t,link));
-  
-  p = nt_atomic_dequeue( &q2, offsetof(elem_t,link) );
+  p = nt_atomic_dequeue( &q, offsetof(elem_t,link) );
   assert(p == &mary);
-  p = nt_atomic_dequeue( &q2, offsetof(elem_t,link) );
+  //printf("p={%ld, %p, %d}\n", p->data1, p->link, p->data2);
+  
+  p = nt_atomic_dequeue_ifnexteq( &q, offsetof(elem_t,link), &mary );
+  assert(p == NULL); /* should fail because the next entry is fred, not mary. */
+  
+  p = nt_atomic_dequeue( &q, offsetof(elem_t,link) );
   assert(p == &fred);
-  p = nt_atomic_dequeue( &q2, offsetof(elem_t,link) );
+  //printf("p={%ld, %p, %d}\n", p->data1, p->link, p->data2);
+  
+  p = nt_atomic_dequeue( &q, offsetof(elem_t,link) );
   assert(p == NULL);
+  
   
   /* Darwin OSAtomic benchmark/comparison. Need to
   #include <libkern/OSAtomic.h>
-  OSQueueHead q = OS_ATOMIC_QUEUE_INIT;
+  OSQueueHead q2 = OS_ATOMIC_QUEUE_INIT;
   
-  OSAtomicEnqueue( &q, &fred, offsetof(elem_t,link) );
-  OSAtomicEnqueue( &q, &mary, offsetof(elem_t,link) );
+  OSAtomicEnqueue( &q2, &fred, offsetof(elem_t,link) );
+  OSAtomicEnqueue( &q2, &mary, offsetof(elem_t,link) );
   
-  p = OSAtomicDequeue( &q, offsetof(elem_t,link) );
+  p = OSAtomicDequeue( &q2, offsetof(elem_t,link) );
   assert(p == &mary);
-  p = OSAtomicDequeue( &q, offsetof(elem_t,link) );
+  p = OSAtomicDequeue( &q2, offsetof(elem_t,link) );
   assert(p == &fred);*/
   
   return 0;
