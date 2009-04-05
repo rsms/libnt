@@ -1,9 +1,8 @@
 /*
- * Memory pool defines.
+ * A variable-sized, thread-safe and lock-free memory pool.
  *
  * Copyright 1996 by Gray Watson.
- *
- * This file is part of the mpool package.
+ * Copyright 2009 Rasmus Andersson.
  *
  * Permission to use, copy, modify, and distribute this software for
  * any purpose and without fee is hereby granted, provided that the
@@ -25,10 +24,6 @@
 #define __NT_MPOOL_H__
 
 #include <sys/types.h>
-
-/*
- * mpool flags to nt_mpool_alloc or nt_mpool_set_attr
- */
 
 /*
  * Choose a best fit algorithm not first fit.  This takes more CPU
@@ -141,7 +136,7 @@ typedef void	(*nt_mpool_log_func_t)(const void *mp_p,
 				    const unsigned long old_byte_size);
 
 #ifdef NT_MPOOL_MAIN
-#include "mpool_loc.h"
+#include "mpool_private.h"
 #else
 
 /* generic mpool type */

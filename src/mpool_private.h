@@ -24,6 +24,8 @@
 #ifndef __NT_MPOOL_LOC_H__
 #define __NT_MPOOL_LOC_H__
 
+#include "spinlock.h"
+
 #define NT_MPOOL_MAGIC	0xABACABA		/* magic for struct */
 #define BLOCK_MAGIC	0xB1B1007		/* magic for blocks */
 #define FENCE_MAGIC0	(unsigned char)(0xFAU)	/* 1st magic mem byte */
@@ -70,7 +72,15 @@
 					 ((char *)(block_p) + \
 					  sizeof(nt_mpool_block_t)))
 
+#define LOCK_POOL(mp_p) nt_spinlock_lock(&((mp_p)->lock))
+#define UNLOCK_POOL(mp_p) nt_spinlock_unlock(&((mp_p)->lock))
+/* if __SMP__ is defined, nt_spinlock_* have no effect, so no need to think
+   about stuff like that in a header file like this :) */
+
 typedef struct {
+#ifndef __SMP__
+  nt_spinlock_t   lock;
+#endif
   unsigned int		mp_magic;	/* magic number for struct */
   unsigned int		mp_flags;	/* flags for the struct */
   unsigned long		mp_alloc_c;	/* number of allocations */
@@ -90,6 +100,16 @@ typedef struct {
   struct nt_mpool_block_st	*mp_free[MAX_BITS + 1]; /* free lists based on size */
   unsigned int		mp_magic2;	/* upper magic for overwrite sanity */
 } nt_mpool_t;
+
+/*
+Members which are volatile:
+
+Note that if you manually alter any of the following members of nt_mpool_t
+you are responsible for locking the spin lock
+
+  - mp_flags
+
+*/
 
 /* for debuggers to be able to interrogate the generic type in the .h file */
 typedef nt_mpool_t	nt_mpool_ext_t;

@@ -8,7 +8,7 @@
 int main(int argc, char * const *argv) {
   typedef struct elem {
     long data1;
-    struct elem *link;
+    volatile struct elem *link;
     int data2;
   } elem_t;
   

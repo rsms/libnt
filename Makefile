@@ -44,7 +44,7 @@ ex_echo: lib build/libs/libnt.dylib examples/ex_echo.c
 	$(CC) $(CFLAGS) $(TOOL_CFLAGS) $(LIBSDIR) examples/ex_echo.c -o build/example_echo
 
 $(TESTS): lib ${TESTS_OBJ}
-	@echo running test $@
+	@echo running test ./build/tests/$@
 	@rm -f build/tests/$@
 	@$(CC) $(LDFLAGS) -Lbuild/libs -lnt tests/$@.o -o build/tests/$@
 	@./build/tests/$@ > /dev/null

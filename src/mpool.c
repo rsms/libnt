@@ -2,8 +2,7 @@
  * Memory pool routines.
  *
  * Copyright 1996 by Gray Watson.
- *
- * This file is part of the mpool package.
+ * Copyright 2009 Rasmus Andersson.
  *
  * Permission to use, copy, modify, and distribute this software for
  * any purpose and without fee is hereby granted, provided that the
@@ -22,7 +21,9 @@
  */
 
 /**
-  Modified by Rasmus Andersson for use in libnt
+  Rewritten by Rasmus Andersson for use in libnt.
+  Added thread-safety using "lock-free" spinlocks and added support for ANON
+  mmaps (instead of open(/dev/zero)) and alot of minor tweaks and fixes.
 */
 
 /*
@@ -30,10 +31,10 @@
  * library which was close to what we needed but did not exactly do
  * what I wanted.
  *
- * The following uses mmap from /dev/zero.  It allows a number of
- * allocations to be made inside of a memory pool then with a clear or
- * close the pool can be reset without any memory fragmentation and
- * growth problems.
+ * The following uses mmap from /dev/zero or MMAP_ANON (depending on the 
+ * system). It allows a number of allocations to be made inside of a memory
+ * pool then with a clear or close the pool can be reset without any memory
+ * fragmentation and growth problems.
  */
 
 #include <errno.h>
@@ -55,13 +56,16 @@
 #define NT_MPOOL_MAIN
 
 #include "mpool.h"
-#include "mpool_loc.h"
+#include "mpool_private.h"
 
 /* local variables */
-static	int		enabled_b = 0;		/* lib initialized? */
+static	int		_initialized = 0;		/* lib initialized? */
 static	unsigned int	min_bit_free_next = 0;	/* min size of next pnt */
 static	unsigned int	min_bit_free_size = 0;	/* min size of next + size */
 static	unsigned long	bit_array[MAX_BITS + 1]; /* size -> bit */
+#if !defined(NT_HAVE_CONSTRUCTOR) && !defined(__SMP__)
+static nt_spinlock_t initlock = (nt_spinlock_t)0;
+#endif
 
 /****************************** local utilities ******************************/
 
@@ -85,10 +89,6 @@ NT_CONSTRUCTOR static void _init(void)
   int		bit_c;
   unsigned long	size = 1;
   
-  if (enabled_b) {
-    return;
-  }
-  
   /* allocate our free bit array list */
   for (bit_c = 0; bit_c <= MAX_BITS; bit_c++) {
     bit_array[bit_c] = size;
@@ -111,7 +111,7 @@ NT_CONSTRUCTOR static void _init(void)
     size *= 2;
   }
   
-  enabled_b = 1;
+  _initialized = 1;
 }
 
 /*
@@ -903,14 +903,18 @@ nt_mpool_t	*nt_mpool_open(const unsigned int flags, const unsigned int page_size
   nt_mpool_t	mp, *mp_p;
   void		*free_addr;
   
-#ifndef NT_HAVE_CONSTRUCTOR
-  if (! enabled_b) {
+#if !defined(NT_HAVE_CONSTRUCTOR) && !defined(__SMP__)
+  nt_spinlock_lock(&initlock);
+  if (!_initialized)
     _init();
-  }
+  nt_spinlock_unlock(&initlock);
 #endif
   
   /* zero our temp struct */
   memset(&mp, 0, sizeof(mp));
+  
+  /*nt_spinlock_init(&mp.lock);
+  no need to init since we zero above and contention is impossible. */
   
   mp.mp_magic = NT_MPOOL_MAGIC;
   mp.mp_flags = flags;
@@ -1080,6 +1084,13 @@ int	nt_mpool_close(nt_mpool_t *mp_p)
     return NT_MPOOL_ERROR_POOL_OVER;
   }
   
+  LOCK_POOL(mp_p);
+  if (mp_p->mp_magic != NT_MPOOL_MAGIC) {
+    UNLOCK_POOL(mp_p);
+    // this means another thread closed the pool before we got the lock
+    return NT_MPOOL_ERROR_NONE;
+  }
+  
   if (mp_p->mp_log_func != NULL) {
     mp_p->mp_log_func(mp_p, NT_MPOOL_FUNC_CLOSE, 0, 0, NULL, NULL, 0);
   }
@@ -1108,10 +1119,12 @@ int	nt_mpool_close(nt_mpool_t *mp_p)
   }
   
   /* close /dev/zero if necessary */
+#ifdef HAVE_MEM_MMAP_ZERO
   if (mp_p->mp_fd >= 0) {
     (void)close(mp_p->mp_fd);
     mp_p->mp_fd = -1;
   }
+#endif
   
   /* invalidate the mpool before we ditch it */
   mp_p->mp_magic = 0;
@@ -1131,6 +1144,8 @@ int	nt_mpool_close(nt_mpool_t *mp_p)
     
     (void)munmap((caddr_t)addr, size);
   }
+  
+  UNLOCK_POOL(mp_p);
   
   return final;
 }
@@ -1169,6 +1184,8 @@ int	nt_mpool_clear(nt_mpool_t *mp_p)
     return NT_MPOOL_ERROR_POOL_OVER;
   }
   
+  LOCK_POOL(mp_p);
+  
   if (mp_p->mp_log_func != NULL) {
     mp_p->mp_log_func(mp_p, NT_MPOOL_FUNC_CLEAR, 0, 0, NULL, NULL, 0);
   }
@@ -1182,8 +1199,7 @@ int	nt_mpool_clear(nt_mpool_t *mp_p)
   for (block_p = mp_p->mp_first_p;
        block_p != NULL;
        block_p = block_p->mb_next_p) {
-    if (block_p->mb_magic != BLOCK_MAGIC
-	|| block_p->mb_magic2 != BLOCK_MAGIC) {
+    if (block_p->mb_magic != BLOCK_MAGIC || block_p->mb_magic2 != BLOCK_MAGIC) {
       final = NT_MPOOL_ERROR_POOL_OVER;
       break;
     }
@@ -1196,6 +1212,8 @@ int	nt_mpool_clear(nt_mpool_t *mp_p)
       final = ret;
     }
   }
+  
+  UNLOCK_POOL(mp_p);
   
   return final;
 }
@@ -1255,7 +1273,9 @@ void	*nt_mpool_alloc(nt_mpool_t *mp_p, const unsigned long byte_size,
     return NULL;
   }
   
+  LOCK_POOL(mp_p);
   addr = alloc_mem(mp_p, byte_size, error_p);
+  UNLOCK_POOL(mp_p);
   
   if (mp_p->mp_log_func != NULL) {
     mp_p->mp_log_func(mp_p, NT_MPOOL_FUNC_ALLOC, byte_size, 0, addr, NULL, 0);
@@ -1324,7 +1344,11 @@ void	*nt_mpool_calloc(nt_mpool_t *mp_p, const unsigned long ele_n,
   }
   
   byte_size = ele_n * ele_size;
+  
+  LOCK_POOL(mp_p);
   addr = alloc_mem(mp_p, byte_size, error_p);
+  UNLOCK_POOL(mp_p);
+  
   if (addr != NULL) {
     memset(addr, 0, byte_size);
   }
@@ -1361,6 +1385,8 @@ void	*nt_mpool_calloc(nt_mpool_t *mp_p, const unsigned long ele_n,
  */
 int	nt_mpool_free(nt_mpool_t *mp_p, void *addr, const unsigned long size)
 {
+  int rc;
+  
   if (mp_p == NULL) {
     /* special case -- do a normal free */
     free(addr);
@@ -1384,7 +1410,11 @@ int	nt_mpool_free(nt_mpool_t *mp_p, void *addr, const unsigned long size)
     return NT_MPOOL_ERROR_ARG_INVALID;
   }
   
-  return free_mem(mp_p, addr, size);
+  LOCK_POOL(mp_p);
+  rc = free_mem(mp_p, addr, size);
+  UNLOCK_POOL(mp_p);
+  
+  return rc;
 }
 
 /*
@@ -1463,13 +1493,17 @@ void	*nt_mpool_resize(nt_mpool_t *mp_p, void *old_addr,
    * If the size is larger than a block then the allocation must be at
    * the front of the block.
    */
+  LOCK_POOL(mp_p);
   if (old_byte_size > MAX_BLOCK_USER_MEMORY(mp_p)) {
+    UNLOCK_POOL(mp_p);
     block_p = (nt_mpool_block_t *)((char *)old_addr - sizeof(nt_mpool_block_t));
-    if (block_p->mb_magic != BLOCK_MAGIC
-	|| block_p->mb_magic2 != BLOCK_MAGIC) {
+    if (block_p->mb_magic != BLOCK_MAGIC || block_p->mb_magic2 != BLOCK_MAGIC) {
       SET_POINTER(error_p, NT_MPOOL_ERROR_POOL_OVER);
       return NULL;
     }
+  }
+  else {
+    UNLOCK_POOL(mp_p);
   }
   
   /* make sure we have enough bytes */
@@ -1509,7 +1543,9 @@ void	*nt_mpool_resize(nt_mpool_t *mp_p, void *old_addr,
    */
   
   /* we need to get another address */
+  LOCK_POOL(mp_p);
   new_addr = alloc_mem(mp_p, new_byte_size, error_p);
+  UNLOCK_POOL(mp_p);
   if (new_addr == NULL) {
     /* error_p set in nt_mpool_alloc */
     return NULL;
@@ -1524,13 +1560,16 @@ void	*nt_mpool_resize(nt_mpool_t *mp_p, void *old_addr,
   memcpy(new_addr, old_addr, copy_size);
   
   /* free the old address */
+  LOCK_POOL(mp_p);
   ret = free_mem(mp_p, old_addr, old_byte_size);
   if (ret != NT_MPOOL_ERROR_NONE) {
     /* if the old free failed, try and free the new address */
     (void)free_mem(mp_p, new_addr, new_byte_size);
     SET_POINTER(error_p, ret);
+    UNLOCK_POOL(mp_p);
     return NULL;
   }
+  UNLOCK_POOL(mp_p);
   
   if (mp_p->mp_log_func != NULL) {
     mp_p->mp_log_func(mp_p, NT_MPOOL_FUNC_RESIZE, new_byte_size,
@@ -1591,11 +1630,13 @@ int	nt_mpool_stats(const nt_mpool_t *mp_p, unsigned int *page_size_p,
     return NT_MPOOL_ERROR_POOL_OVER;
   }
   
+  LOCK_POOL(mp_p);
   SET_POINTER(page_size_p, mp_p->mp_page_size);
   SET_POINTER(num_alloced_p, mp_p->mp_alloc_c);
   SET_POINTER(user_alloced_p, mp_p->mp_user_alloc);
   SET_POINTER(max_alloced_p, mp_p->mp_max_alloc);
   SET_POINTER(tot_alloced_p, SIZE_OF_PAGES(mp_p, mp_p->mp_page_c));
+  UNLOCK_POOL(mp_p);
   
   return NT_MPOOL_ERROR_NONE;
 }
@@ -1633,7 +1674,9 @@ int	nt_mpool_set_log_func(nt_mpool_t *mp_p, nt_mpool_log_func_t log_func)
     return NT_MPOOL_ERROR_POOL_OVER;
   }
   
+  LOCK_POOL(mp_p);
   mp_p->mp_log_func = log_func;
+  UNLOCK_POOL(mp_p);
   
   return NT_MPOOL_ERROR_NONE;
 }
@@ -1675,6 +1718,8 @@ int	nt_mpool_set_max_pages(nt_mpool_t *mp_p, const unsigned int max_pages)
     return NT_MPOOL_ERROR_POOL_OVER;
   }
   
+  LOCK_POOL(mp_p);
+  
   if (BIT_IS_SET(mp_p->mp_flags, NT_MPOOL_FLAG_HEAVY_PACKING)) {
     mp_p->mp_max_pages = max_pages;
   }
@@ -1685,6 +1730,8 @@ int	nt_mpool_set_max_pages(nt_mpool_t *mp_p, const unsigned int max_pages)
      */
     mp_p->mp_max_pages = max_pages + 1;
   }
+  
+  UNLOCK_POOL(mp_p);
   
   return NT_MPOOL_ERROR_NONE;
 }
