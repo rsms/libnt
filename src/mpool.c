@@ -80,7 +80,7 @@ static	unsigned long	bit_array[MAX_BITS + 1]; /* size -> bit */
  *
  * None.
  */
-static	void	startup(void)
+NT_CONSTRUCTOR static void _init(void)
 {
   int		bit_c;
   unsigned long	size = 1;
@@ -903,9 +903,11 @@ nt_mpool_t	*nt_mpool_open(const unsigned int flags, const unsigned int page_size
   nt_mpool_t	mp, *mp_p;
   void		*free_addr;
   
+#ifndef NT_HAVE_CONSTRUCTOR
   if (! enabled_b) {
-    startup();
+    _init();
   }
+#endif
   
   /* zero our temp struct */
   memset(&mp, 0, sizeof(mp));

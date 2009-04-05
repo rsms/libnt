@@ -80,14 +80,14 @@ extern void *nt_atomic_dequeue(nt_atomic_queue *queue, size_t offset) NT_ATTR(no
 extern void *nt_atomic_dequeue_ifnexteq(nt_atomic_queue *queue, size_t offset, void *cmpptr) NT_ATTR(nonnull(1,3));
 
 
-#if !defined (__GNUC__) || (__GNUC__ < 4)
+#ifndef NT_HAVE_CONSTRUCTOR
 /**
   Initialize library.
   
   This need to be called once in order to initialize the library on targets
   not supporting "constructors".
 */
-void nt_atomic_queue_init(void);
+void nt_atomic_queue_initlib(void);
 #endif
 
 

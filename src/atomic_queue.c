@@ -46,10 +46,10 @@ static _enqueue_ifnexteq_func _dequeue_ifnexteq = NULL;
 
 /* ------------------------------------------------------------------------- */
 
-#if defined (__GNUC__) && (__GNUC__ >= 4)
-NT_ATTR(constructor) static void _init(void)
+#ifdef NT_HAVE_CONSTRUCTOR
+NT_CONSTRUCTOR static void _init(void)
 #else
-void nt_atomic_queue_init(void)
+void nt_atomic_queue_initlib(void)
 #endif
 {
   int ncpu = 0, fake64 = 0;
