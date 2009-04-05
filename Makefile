@@ -1,7 +1,7 @@
 .PHONY: all lib examples test
 
 S_SRC=src/atomic_queue_asmimpl.s
-C_SRC=src/util.c \
+C_SRC=src/util.c src/machine.c \
       src/atomic_queue.c src/freelist.c \
       src/event_base.c \
       src/tcp_socket.c src/tcp_server.c src/tcp_client.c
