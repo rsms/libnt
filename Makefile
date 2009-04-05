@@ -49,14 +49,6 @@ $(TESTS): lib ${TESTS_OBJ}
 	@$(CC) $(LDFLAGS) -Lbuild/libs -lnt tests/$@.o -o build/tests/$@
 	@./build/tests/$@ > /dev/null
 
-test_atomic_queue: lib build/libs/libnt.dylib tests/atomic_queue.c
-	$(CC) $(CFLAGS) $(TOOL_CFLAGS) $(LIBSDIR) tests/atomic_queue.c -o build/test_atomic_queue
-	@./build/test_atomic_queue > /dev/null
-
-test_mpool: lib build/libs/libnt.dylib tests/mpool.c
-	$(CC) $(CFLAGS) $(TOOL_CFLAGS) $(LIBSDIR) tests/mpool.c -o build/test_mpool
-	@./build/test_mpool > /dev/null
-
 ${DIRS}:
 	@mkdir $@
 

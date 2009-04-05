@@ -52,13 +52,10 @@
 #error does your system support mmap(/dev/zero) or mmap(MMAP_ANON)?
 #endif
 
-#define MPOOL_MAIN
+#define NT_MPOOL_MAIN
 
 #include "mpool.h"
 #include "mpool_loc.h"
-
-/* version */
-static	char *version = "mpool library version 2.1.0";
 
 /* local variables */
 static	int		enabled_b = 0;		/* lib initialized? */
@@ -107,7 +104,7 @@ static	void	startup(void)
      * Note our minimum number of bits that can store a pointer and
      * the size of the block.
      */
-    if (min_bit_free_size == 0 && size >= sizeof(mpool_free_t)) {
+    if (min_bit_free_size == 0 && size >= sizeof(nt_mpool_free_t)) {
       min_bit_free_size = bit_c;
     }
     
@@ -224,7 +221,7 @@ static	unsigned long	bits_to_size(const int bit_n)
  * error_p <- Pointer to integer which, if not NULL, will be set with
  * a mpool error code.
  */
-static	void	*alloc_pages(mpool_t *mp_p, const unsigned int page_n,
+static	void	*alloc_pages(nt_mpool_t *mp_p, const unsigned int page_n,
 			     int *error_p)
 {
   void		*mem, *fill_mem;
@@ -233,7 +230,7 @@ static	void	*alloc_pages(mpool_t *mp_p, const unsigned int page_n,
   
   /* are we over our max-pages? */
   if (mp_p->mp_max_pages > 0 && mp_p->mp_page_c >= mp_p->mp_max_pages) {
-    SET_POINTER(error_p, MPOOL_ERROR_NO_PAGES);
+    SET_POINTER(error_p, NT_MPOOL_ERROR_NO_PAGES);
     return NULL;
   }
   
@@ -243,10 +240,10 @@ static	void	*alloc_pages(mpool_t *mp_p, const unsigned int page_n,
   (void)printf("allocating %u pages or %lu bytes\n", page_n, size);
 #endif
   
-  if (BIT_IS_SET(mp_p->mp_flags, MPOOL_FLAG_USE_SBRK)) {
+  if (BIT_IS_SET(mp_p->mp_flags, NT_MPOOL_FLAG_USE_SBRK)) {
     mem = sbrk(size);
     if (mem == (void *)-1) {
-      SET_POINTER(error_p, MPOOL_ERROR_NO_MEM);
+      SET_POINTER(error_p, NT_MPOOL_ERROR_NO_MEM);
       return NULL;
     }
     fill = (unsigned long)mem % mp_p->mp_page_size;
@@ -255,11 +252,11 @@ static	void	*alloc_pages(mpool_t *mp_p, const unsigned int page_n,
       fill = mp_p->mp_page_size - fill;
       fill_mem = sbrk(fill);
       if (fill_mem == (void *)-1) {
-	SET_POINTER(error_p, MPOOL_ERROR_NO_MEM);
+	SET_POINTER(error_p, NT_MPOOL_ERROR_NO_MEM);
 	return NULL;
       }
       if ((char *)fill_mem != (char *)mem + size) {
-	SET_POINTER(error_p, MPOOL_ERROR_SBRK_CONTIG);
+	SET_POINTER(error_p, NT_MPOOL_ERROR_SBRK_CONTIG);
 	return NULL;
       }
       mem = (char *)mem + fill;
@@ -287,10 +284,10 @@ static	void	*alloc_pages(mpool_t *mp_p, const unsigned int page_n,
 	       mp_p->mp_fd, mp_p->mp_top);
     if (mem == (void *)MAP_FAILED) {
       if (errno == ENOMEM) {
-	SET_POINTER(error_p, MPOOL_ERROR_NO_MEM);
+	SET_POINTER(error_p, NT_MPOOL_ERROR_NO_MEM);
       }
       else {
-	SET_POINTER(error_p, MPOOL_ERROR_MMAP);
+	SET_POINTER(error_p, NT_MPOOL_ERROR_MMAP);
       }
       return NULL;
     }
@@ -302,7 +299,7 @@ static	void	*alloc_pages(mpool_t *mp_p, const unsigned int page_n,
   
   mp_p->mp_page_c += page_n;
   
-  SET_POINTER(error_p, MPOOL_ERROR_NONE);
+  SET_POINTER(error_p, NT_MPOOL_ERROR_NONE);
   return mem;
 }
 
@@ -315,7 +312,7 @@ static	void	*alloc_pages(mpool_t *mp_p, const unsigned int page_n,
  *
  * RETURNS:
  *
- * Success - MPOOL_ERROR_NONE
+ * Success - NT_MPOOL_ERROR_NONE
  *
  * Failure - Mpool error code
  *
@@ -334,7 +331,7 @@ static	int	free_pages(void *pages, const unsigned long size,
     (void)munmap((caddr_t)pages, size);
   }
   
-  return MPOOL_ERROR_NONE;
+  return NT_MPOOL_ERROR_NONE;
 }
 
 /*
@@ -346,7 +343,7 @@ static	int	free_pages(void *pages, const unsigned long size,
  *
  * RETURNS:
  *
- * Success - MPOOL_ERROR_NONE
+ * Success - NT_MPOOL_ERROR_NONE
  *
  * Failure - Mpool error code
  *
@@ -364,10 +361,10 @@ static	int	check_magic(const void *addr, const unsigned long size)
   mem_p = (unsigned char *)addr + size;
   
   if (*mem_p == FENCE_MAGIC0 && *(mem_p + 1) == FENCE_MAGIC1) {
-    return MPOOL_ERROR_NONE;
+    return NT_MPOOL_ERROR_NONE;
   }
   else {
-    return MPOOL_ERROR_PNT_OVER;
+    return NT_MPOOL_ERROR_PNT_OVER;
   }
 }
 
@@ -401,7 +398,7 @@ static	void	write_magic(const void *addr)
  *
  * RETURNS:
  *
- * Success - MPOOL_ERROR_NONE
+ * Success - NT_MPOOL_ERROR_NONE
  *
  * Failure - Mpool error code
  *
@@ -414,19 +411,19 @@ static	void	write_magic(const void *addr)
  *
  * size -> Size of the address space.
  */
-static	int	free_pointer(mpool_t *mp_p, void *addr,
+static	int	free_pointer(nt_mpool_t *mp_p, void *addr,
 			     const unsigned long size)
 {
   unsigned int	bit_n;
   unsigned long	real_size;
-  mpool_free_t	free_pnt;
+  nt_mpool_free_t	free_pnt;
   
 #ifdef DEBUG
   (void)printf("freeing a block at %lx of %lu bytes\n", (long)addr, size);
 #endif
   
   if (size == 0) {
-    return MPOOL_ERROR_NONE;
+    return NT_MPOOL_ERROR_NONE;
   }
   
   /*
@@ -435,7 +432,7 @@ static	int	free_pointer(mpool_t *mp_p, void *addr,
    */
   if (size > MAX_BLOCK_USER_MEMORY(mp_p)) {
     real_size = SIZE_OF_PAGES(mp_p, PAGES_IN_SIZE(mp_p, size)) -
-      sizeof(mpool_block_t);
+      sizeof(nt_mpool_block_t);
   }
   else {
     real_size = size;
@@ -454,7 +451,7 @@ static	int	free_pointer(mpool_t *mp_p, void *addr,
    * list however this might be prohibitive.
    */
   if (mp_p->mp_free[bit_n] == addr) {
-    return MPOOL_ERROR_IS_FREE;
+    return NT_MPOOL_ERROR_IS_FREE;
   }
   
   /* add the freed pointer to the free list */
@@ -483,7 +480,7 @@ static	int	free_pointer(mpool_t *mp_p, void *addr,
     mp_p->mp_free[bit_n] = addr;
   }
   
-  return MPOOL_ERROR_NONE;
+  return NT_MPOOL_ERROR_NONE;
 }
 
 /*
@@ -496,7 +493,7 @@ static	int	free_pointer(mpool_t *mp_p, void *addr,
  *
  * RETURNS:
  *
- * Success - MPOOL_ERROR_NONE
+ * Success - NT_MPOOL_ERROR_NONE
  *
  * Failure - Mpool error code
  *
@@ -508,10 +505,10 @@ static	int	free_pointer(mpool_t *mp_p, void *addr,
  *
  * size -> Size of the space that we are taking from address.
  */
-static	int	split_block(mpool_t *mp_p, void *free_addr,
+static	int	split_block(nt_mpool_t *mp_p, void *free_addr,
 			    const unsigned long size)
 {
-  mpool_block_t	*block_p, *new_block_p;
+  nt_mpool_block_t	*block_p, *new_block_p;
   int		ret, page_n;
   void		*end_p;
   
@@ -520,16 +517,16 @@ static	int	split_block(mpool_t *mp_p, void *free_addr,
    * the pointer must be the 1st one in the block if it is spans
    * multiple blocks.
    */
-  block_p = (mpool_block_t *)((char *)free_addr - sizeof(mpool_block_t));
+  block_p = (nt_mpool_block_t *)((char *)free_addr - sizeof(nt_mpool_block_t));
   if (block_p->mb_magic != BLOCK_MAGIC
       || block_p->mb_magic2 != BLOCK_MAGIC) {
-    return MPOOL_ERROR_POOL_OVER;
+    return NT_MPOOL_ERROR_POOL_OVER;
   }
   
   page_n = PAGES_IN_SIZE(mp_p, size);
   
   /* we are creating a new block structure for the 2nd ... */
-  new_block_p = (mpool_block_t *)((char *)block_p +
+  new_block_p = (nt_mpool_block_t *)((char *)block_p +
 				  SIZE_OF_PAGES(mp_p, page_n));
   new_block_p->mb_magic = BLOCK_MAGIC;
   /* New bounds is 1st block bounds.  The 1st block's is reset below. */
@@ -549,7 +546,7 @@ static	int	split_block(mpool_t *mp_p, void *free_addr,
     end_p = (char *)free_addr + size;
     ret = free_pointer(mp_p, end_p,
 		       (char *)block_p->mb_bounds_p - (char *)end_p);
-    if (ret != MPOOL_ERROR_NONE) {
+    if (ret != NT_MPOOL_ERROR_NONE) {
       return ret;
     }
   }
@@ -557,11 +554,11 @@ static	int	split_block(mpool_t *mp_p, void *free_addr,
   /* now free the rest of the block */
   ret = free_pointer(mp_p, FIRST_ADDR_IN_BLOCK(new_block_p),
 		     MEMORY_IN_BLOCK(new_block_p));
-  if (ret != MPOOL_ERROR_NONE) {
+  if (ret != NT_MPOOL_ERROR_NONE) {
     return ret;
   }
   
-  return MPOOL_ERROR_NONE;
+  return NT_MPOOL_ERROR_NONE;
 }
 
 /*
@@ -586,11 +583,11 @@ static	int	split_block(mpool_t *mp_p, void *free_addr,
  * error_p <- Pointer to integer which, if not NULL, will be set with
  * a mpool error code.
  */
-static	void	*get_space(mpool_t *mp_p, const unsigned long byte_size,
+static	void	*get_space(nt_mpool_t *mp_p, const unsigned long byte_size,
 			   int *error_p)
 {
-  mpool_block_t	*block_p;
-  mpool_free_t	free_pnt;
+  nt_mpool_block_t	*block_p;
+  nt_mpool_free_t	free_pnt;
   int		ret;
   unsigned long	size;
   unsigned int	bit_c, page_n, left;
@@ -680,7 +677,7 @@ static	void	*get_space(mpool_t *mp_p, const unsigned long byte_size,
       /* are we are splitting up a multiblock chunk into fewer blocks? */
       if (PAGES_IN_SIZE(mp_p, free_pnt.mf_size) > PAGES_IN_SIZE(mp_p, size)) {
 	ret = split_block(mp_p, free_addr, size);
-	if (ret != MPOOL_ERROR_NONE) {
+	if (ret != NT_MPOOL_ERROR_NONE) {
 	  SET_POINTER(error_p, ret);
 	  return NULL;
 	}
@@ -711,7 +708,7 @@ static	void	*get_space(mpool_t *mp_p, const unsigned long byte_size,
   if (left > 0 && size <= MAX_BLOCK_USER_MEMORY(mp_p)) {
     /* free the rest of the block */
     ret = free_pointer(mp_p, free_end, left);
-    if (ret != MPOOL_ERROR_NONE) {
+    if (ret != NT_MPOOL_ERROR_NONE) {
       SET_POINTER(error_p, ret);
       return NULL;
     }
@@ -751,7 +748,7 @@ static	void	*get_space(mpool_t *mp_p, const unsigned long byte_size,
  * error_p <- Pointer to integer which, if not NULL, will be set with
  * a mpool error code.
  */
-static	void	*alloc_mem(mpool_t *mp_p, const unsigned long byte_size,
+static	void	*alloc_mem(nt_mpool_t *mp_p, const unsigned long byte_size,
 			   int *error_p)
 {
   unsigned long	size, fence;
@@ -765,7 +762,7 @@ static	void	*alloc_mem(mpool_t *mp_p, const unsigned long byte_size,
     size = byte_size;
   }
   
-  if (BIT_IS_SET(mp_p->mp_flags, MPOOL_FLAG_NO_FREE)) {
+  if (BIT_IS_SET(mp_p->mp_flags, NT_MPOOL_FLAG_NO_FREE)) {
     fence = 0;
   }
   else {
@@ -779,7 +776,7 @@ static	void	*alloc_mem(mpool_t *mp_p, const unsigned long byte_size,
     return NULL;
   }
   
-  if (! BIT_IS_SET(mp_p->mp_flags, MPOOL_FLAG_NO_FREE)) {
+  if (! BIT_IS_SET(mp_p->mp_flags, NT_MPOOL_FLAG_NO_FREE)) {
     write_magic((char *)addr + size);
   }
   
@@ -790,7 +787,7 @@ static	void	*alloc_mem(mpool_t *mp_p, const unsigned long byte_size,
     mp_p->mp_max_alloc = mp_p->mp_user_alloc;
   }
   
-  SET_POINTER(error_p, MPOOL_ERROR_NONE);
+  SET_POINTER(error_p, NT_MPOOL_ERROR_NONE);
   return addr;
 }
 
@@ -803,7 +800,7 @@ static	void	*alloc_mem(mpool_t *mp_p, const unsigned long byte_size,
  *
  * RETURNS:
  *
- * Success - MPOOL_ERROR_NONE
+ * Success - NT_MPOOL_ERROR_NONE
  *
  * Failure - Mpool error code
  *
@@ -816,21 +813,21 @@ static	void	*alloc_mem(mpool_t *mp_p, const unsigned long byte_size,
  *
  * size -> Size of the address being freed.
  */
-static	int	free_mem(mpool_t *mp_p, void *addr, const unsigned long size)
+static	int	free_mem(nt_mpool_t *mp_p, void *addr, const unsigned long size)
 {
   unsigned long	old_size, fence;
   int		ret;
-  mpool_block_t	*block_p;
+  nt_mpool_block_t	*block_p;
   
   /*
    * If the size is larger than a block then the allocation must be at
    * the front of the block.
    */
   if (size > MAX_BLOCK_USER_MEMORY(mp_p)) {
-    block_p = (mpool_block_t *)((char *)addr - sizeof(mpool_block_t));
+    block_p = (nt_mpool_block_t *)((char *)addr - sizeof(nt_mpool_block_t));
     if (block_p->mb_magic != BLOCK_MAGIC
 	|| block_p->mb_magic2 != BLOCK_MAGIC) {
-      return MPOOL_ERROR_POOL_OVER;
+      return NT_MPOOL_ERROR_POOL_OVER;
     }
   }
   
@@ -843,13 +840,13 @@ static	int	free_mem(mpool_t *mp_p, void *addr, const unsigned long size)
   }
   
   /* if we are packing the pool smaller */
-  if (BIT_IS_SET(mp_p->mp_flags, MPOOL_FLAG_NO_FREE)) {
+  if (BIT_IS_SET(mp_p->mp_flags, NT_MPOOL_FLAG_NO_FREE)) {
     fence = 0;
   }
   else {
     /* find the user's magic numbers if they were written */
     ret = check_magic(addr, old_size);
-    if (ret != MPOOL_ERROR_NONE) { 
+    if (ret != NT_MPOOL_ERROR_NONE) { 
       return ret;
     }
     fence = FENCE_SIZE;
@@ -857,7 +854,7 @@ static	int	free_mem(mpool_t *mp_p, void *addr, const unsigned long size)
   
   /* now we free the pointer */
   ret = free_pointer(mp_p, addr, old_size + fence);
-  if (ret != MPOOL_ERROR_NONE) {
+  if (ret != NT_MPOOL_ERROR_NONE) {
     return ret;
   }
   mp_p->mp_user_alloc -= old_size;
@@ -865,13 +862,13 @@ static	int	free_mem(mpool_t *mp_p, void *addr, const unsigned long size)
   /* adjust our stats */
   mp_p->mp_alloc_c--;
   
-  return MPOOL_ERROR_NONE;
+  return NT_MPOOL_ERROR_NONE;
 }
 
 /***************************** exported routines *****************************/
 
 /*
- * mpool_t *mpool_open
+ * nt_mpool_t *nt_mpool_open
  *
  * DESCRIPTION:
  *
@@ -879,7 +876,7 @@ static	int	free_mem(mpool_t *mp_p, void *addr, const unsigned long size)
  *
  * RETURNS:
  *
- * Success - Pool pointer which must be passed to mpool_close to
+ * Success - Pool pointer which must be passed to nt_mpool_close to
  * deallocate.
  *
  * Failure - NULL
@@ -893,17 +890,17 @@ static	int	free_mem(mpool_t *mp_p, void *addr, const unsigned long size)
  * multiple of the getpagesize() value.  Set to 0 for the default.
  *
  * start_addr -> Starting address to try and allocate memory pools.
- * This is ignored if the MPOOL_FLAG_USE_SBRK is enabled.
+ * This is ignored if the NT_MPOOL_FLAG_USE_SBRK is enabled.
  *
  * error_p <- Pointer to integer which, if not NULL, will be set with
  * a mpool error code.
  */
-mpool_t	*mpool_open(const unsigned int flags, const unsigned int page_size,
+nt_mpool_t	*nt_mpool_open(const unsigned int flags, const unsigned int page_size,
 		    void *start_addr, int *error_p)
 {
-  mpool_block_t	*block_p;
+  nt_mpool_block_t	*block_p;
   int		page_n, ret;
-  mpool_t	mp, *mp_p;
+  nt_mpool_t	mp, *mp_p;
   void		*free_addr;
   
   if (! enabled_b) {
@@ -913,7 +910,7 @@ mpool_t	*mpool_open(const unsigned int flags, const unsigned int page_size,
   /* zero our temp struct */
   memset(&mp, 0, sizeof(mp));
   
-  mp.mp_magic = MPOOL_MAGIC;
+  mp.mp_magic = NT_MPOOL_MAGIC;
   mp.mp_flags = flags;
   mp.mp_alloc_c = 0;
   mp.mp_user_alloc = 0;
@@ -929,27 +926,27 @@ mpool_t	*mpool_open(const unsigned int flags, const unsigned int page_size,
   mp.mp_bounds_p = NULL;
   mp.mp_first_p = NULL;
   mp.mp_last_p = NULL;
-  mp.mp_magic2 = MPOOL_MAGIC;
+  mp.mp_magic2 = NT_MPOOL_MAGIC;
   
   /* get and sanity check our page size */
   if (page_size > 0) {
     mp.mp_page_size = page_size;
     if (mp.mp_page_size % getpagesize() != 0) {
-      SET_POINTER(error_p, MPOOL_ERROR_ARG_INVALID);
+      SET_POINTER(error_p, NT_MPOOL_ERROR_ARG_INVALID);
       return NULL;
     }
   }
   else {
     mp.mp_page_size = getpagesize() * DEFAULT_PAGE_MULT;
     if (mp.mp_page_size % 1024 != 0) {
-      SET_POINTER(error_p, MPOOL_ERROR_PAGE_SIZE);
+      SET_POINTER(error_p, NT_MPOOL_ERROR_PAGE_SIZE);
       return NULL;
     }
   }
   
   mp.mp_top = 0; /* we start at the front of the file */
   
-  if (BIT_IS_SET(flags, MPOOL_FLAG_USE_SBRK)) {
+  if (BIT_IS_SET(flags, NT_MPOOL_FLAG_USE_SBRK)) {
     mp.mp_fd = -1;
     mp.mp_addr = NULL;
   }
@@ -959,7 +956,7 @@ mpool_t	*mpool_open(const unsigned int flags, const unsigned int page_size,
     /* open dev-zero for our mmaping */
     mp.mp_fd = open("/dev/zero", O_RDWR, 0);
     if (mp.mp_fd < 0) {
-      SET_POINTER(error_p, MPOOL_ERROR_OPEN_ZERO);
+      SET_POINTER(error_p, NT_MPOOL_ERROR_OPEN_ZERO);
       return NULL;
     }
 #elif defined(HAVE_MEM_MMAP_ANON)
@@ -970,10 +967,10 @@ mpool_t	*mpool_open(const unsigned int flags, const unsigned int page_size,
   /*
    * Find out how many pages we need for our mpool structure.
    *
-   * NOTE: this adds possibly unneeded space for mpool_block_t which
+   * NOTE: this adds possibly unneeded space for nt_mpool_block_t which
    * may not be in this block.
    */
-  page_n = PAGES_IN_SIZE(&mp, sizeof(mpool_t));
+  page_n = PAGES_IN_SIZE(&mp, sizeof(nt_mpool_t));
   
   /* now allocate us space for the actual struct */
   mp_p = alloc_pages(&mp, page_n, error_p);
@@ -990,10 +987,10 @@ mpool_t	*mpool_open(const unsigned int flags, const unsigned int page_size,
    * we want to lesson the chance of an allocation overwriting the
    * main structure.
    */
-  if (BIT_IS_SET(flags, MPOOL_FLAG_HEAVY_PACKING)) {
+  if (BIT_IS_SET(flags, NT_MPOOL_FLAG_HEAVY_PACKING)) {
     
     /* we add a block header to the front of the block */
-    block_p = (mpool_block_t *)mp_p;
+    block_p = (nt_mpool_block_t *)mp_p;
     
     /* init the block header */
     block_p->mb_magic = BLOCK_MAGIC;
@@ -1003,19 +1000,19 @@ mpool_t	*mpool_open(const unsigned int flags, const unsigned int page_size,
     
     /* the mpool pointer is then the 2nd thing in the block */
     mp_p = FIRST_ADDR_IN_BLOCK(block_p);
-    free_addr = (char *)mp_p + sizeof(mpool_t);
+    free_addr = (char *)mp_p + sizeof(nt_mpool_t);
     
     /* free the rest of the block */
     ret = free_pointer(&mp, free_addr,
 		       (char *)block_p->mb_bounds_p - (char *)free_addr);
-    if (ret != MPOOL_ERROR_NONE) {
+    if (ret != NT_MPOOL_ERROR_NONE) {
       if (mp.mp_fd >= 0) {
 	(void)close(mp.mp_fd);
 	mp.mp_fd = -1;
       }
       /* NOTE: after this line mp_p will be invalid */
       (void)free_pages(block_p, SIZE_OF_PAGES(&mp, page_n),
-		       BIT_IS_SET(flags, MPOOL_FLAG_USE_SBRK));
+		       BIT_IS_SET(flags, NT_MPOOL_FLAG_USE_SBRK));
       SET_POINTER(error_p, ret);
       return NULL;
     }
@@ -1026,7 +1023,7 @@ mpool_t	*mpool_open(const unsigned int flags, const unsigned int page_size,
      */
     
     /* now copy our tmp structure into our new memory area */
-    memcpy(mp_p, &mp, sizeof(mpool_t));
+    memcpy(mp_p, &mp, sizeof(nt_mpool_t));
     
     /* we setup min/max to our current address which is as good as any */
     mp_p->mp_min_p = block_p;
@@ -1034,28 +1031,28 @@ mpool_t	*mpool_open(const unsigned int flags, const unsigned int page_size,
   }
   else {
     /* now copy our tmp structure into our new memory area */
-    memcpy(mp_p, &mp, sizeof(mpool_t));
+    memcpy(mp_p, &mp, sizeof(nt_mpool_t));
     
     /* we setup min/max to our current address which is as good as any */
     mp_p->mp_min_p = mp_p;
     mp_p->mp_bounds_p = (char *)mp_p + SIZE_OF_PAGES(mp_p, page_n);
   }
   
-  SET_POINTER(error_p, MPOOL_ERROR_NONE);
+  SET_POINTER(error_p, NT_MPOOL_ERROR_NONE);
   return mp_p;
 }
 
 /*
- * int mpool_close
+ * int nt_mpool_close
  *
  * DESCRIPTION:
  *
  * Close/free a memory allocation pool previously opened with
- * mpool_open.
+ * nt_mpool_open.
  *
  * RETURNS:
  *
- * Success - MPOOL_ERROR_NONE
+ * Success - NT_MPOOL_ERROR_NONE
  *
  * Failure - Mpool error code
  *
@@ -1063,26 +1060,26 @@ mpool_t	*mpool_open(const unsigned int flags, const unsigned int page_size,
  *
  * mp_p <-> Pointer to our memory pool.
  */
-int	mpool_close(mpool_t *mp_p)
+int	nt_mpool_close(nt_mpool_t *mp_p)
 {
-  mpool_block_t	*block_p, *next_p;
+  nt_mpool_block_t	*block_p, *next_p;
   void		*addr;
   unsigned long	size;
-  int		ret, final = MPOOL_ERROR_NONE;
+  int		ret, final = NT_MPOOL_ERROR_NONE;
   
   /* special case, just return no-error */
   if (mp_p == NULL) {
-    return MPOOL_ERROR_ARG_NULL;
+    return NT_MPOOL_ERROR_ARG_NULL;
   }
-  if (mp_p->mp_magic != MPOOL_MAGIC) {
-    return MPOOL_ERROR_PNT;
+  if (mp_p->mp_magic != NT_MPOOL_MAGIC) {
+    return NT_MPOOL_ERROR_PNT;
   }
-  if (mp_p->mp_magic2 != MPOOL_MAGIC) {
-    return MPOOL_ERROR_POOL_OVER;
+  if (mp_p->mp_magic2 != NT_MPOOL_MAGIC) {
+    return NT_MPOOL_ERROR_POOL_OVER;
   }
   
   if (mp_p->mp_log_func != NULL) {
-    mp_p->mp_log_func(mp_p, MPOOL_FUNC_CLOSE, 0, 0, NULL, NULL, 0);
+    mp_p->mp_log_func(mp_p, NT_MPOOL_FUNC_CLOSE, 0, 0, NULL, NULL, 0);
   }
   
   /*
@@ -1094,7 +1091,7 @@ int	mpool_close(mpool_t *mp_p)
   for (block_p = mp_p->mp_first_p; block_p != NULL; block_p = next_p) {
     if (block_p->mb_magic != BLOCK_MAGIC
 	|| block_p->mb_magic2 != BLOCK_MAGIC) {
-      final = MPOOL_ERROR_POOL_OVER;
+      final = NT_MPOOL_ERROR_POOL_OVER;
       break;
     }
     block_p->mb_magic = 0;
@@ -1102,8 +1099,8 @@ int	mpool_close(mpool_t *mp_p)
     /* record the next pointer because it might be invalidated below */
     next_p = block_p->mb_next_p;
     ret = free_pages(block_p, (char *)block_p->mb_bounds_p - (char *)block_p,
-		     BIT_IS_SET(mp_p->mp_flags, MPOOL_FLAG_USE_SBRK));
-    if (ret != MPOOL_ERROR_NONE) {
+		     BIT_IS_SET(mp_p->mp_flags, NT_MPOOL_FLAG_USE_SBRK));
+    if (ret != NT_MPOOL_ERROR_NONE) {
       final = ret;
     }
   }
@@ -1119,16 +1116,16 @@ int	mpool_close(mpool_t *mp_p)
   mp_p->mp_magic2 = 0;
   
   /* last we munmap the mpool pointer itself */
-  if (! BIT_IS_SET(mp_p->mp_flags, MPOOL_FLAG_USE_SBRK)) {
+  if (! BIT_IS_SET(mp_p->mp_flags, NT_MPOOL_FLAG_USE_SBRK)) {
     
     /* if we are heavy packing then we need to free the 1st block later */
-    if (BIT_IS_SET(mp_p->mp_flags, MPOOL_FLAG_HEAVY_PACKING)) {
-      addr = (char *)mp_p - sizeof(mpool_block_t);
+    if (BIT_IS_SET(mp_p->mp_flags, NT_MPOOL_FLAG_HEAVY_PACKING)) {
+      addr = (char *)mp_p - sizeof(nt_mpool_block_t);
     }
     else {
       addr = mp_p;
     }
-    size = SIZE_OF_PAGES(mp_p, PAGES_IN_SIZE(mp_p, sizeof(mpool_t)));
+    size = SIZE_OF_PAGES(mp_p, PAGES_IN_SIZE(mp_p, sizeof(nt_mpool_t)));
     
     (void)munmap((caddr_t)addr, size);
   }
@@ -1137,7 +1134,7 @@ int	mpool_close(mpool_t *mp_p)
 }
 
 /*
- * int mpool_clear
+ * int nt_mpool_clear
  *
  * DESCRIPTION:
  *
@@ -1145,7 +1142,7 @@ int	mpool_close(mpool_t *mp_p)
  *
  * RETURNS:
  *
- * Success - MPOOL_ERROR_NONE
+ * Success - NT_MPOOL_ERROR_NONE
  *
  * Failure - Mpool error code
  *
@@ -1153,25 +1150,25 @@ int	mpool_close(mpool_t *mp_p)
  *
  * mp_p <-> Pointer to our memory pool.
  */
-int	mpool_clear(mpool_t *mp_p)
+int	nt_mpool_clear(nt_mpool_t *mp_p)
 {
-  mpool_block_t	*block_p;
-  int		final = MPOOL_ERROR_NONE, bit_n, ret;
+  nt_mpool_block_t	*block_p;
+  int		final = NT_MPOOL_ERROR_NONE, bit_n, ret;
   void		*first_p;
   
   /* special case, just return no-error */
   if (mp_p == NULL) {
-    return MPOOL_ERROR_ARG_NULL;
+    return NT_MPOOL_ERROR_ARG_NULL;
   }
-  if (mp_p->mp_magic != MPOOL_MAGIC) {
-    return MPOOL_ERROR_PNT;
+  if (mp_p->mp_magic != NT_MPOOL_MAGIC) {
+    return NT_MPOOL_ERROR_PNT;
   }
-  if (mp_p->mp_magic2 != MPOOL_MAGIC) {
-    return MPOOL_ERROR_POOL_OVER;
+  if (mp_p->mp_magic2 != NT_MPOOL_MAGIC) {
+    return NT_MPOOL_ERROR_POOL_OVER;
   }
   
   if (mp_p->mp_log_func != NULL) {
-    mp_p->mp_log_func(mp_p, MPOOL_FUNC_CLEAR, 0, 0, NULL, NULL, 0);
+    mp_p->mp_log_func(mp_p, NT_MPOOL_FUNC_CLEAR, 0, 0, NULL, NULL, 0);
   }
   
   /* reset all of our free lists */
@@ -1185,7 +1182,7 @@ int	mpool_clear(mpool_t *mp_p)
        block_p = block_p->mb_next_p) {
     if (block_p->mb_magic != BLOCK_MAGIC
 	|| block_p->mb_magic2 != BLOCK_MAGIC) {
-      final = MPOOL_ERROR_POOL_OVER;
+      final = NT_MPOOL_ERROR_POOL_OVER;
       break;
     }
     
@@ -1193,7 +1190,7 @@ int	mpool_clear(mpool_t *mp_p)
     
     /* free the memory */
     ret = free_pointer(mp_p, first_p, MEMORY_IN_BLOCK(block_p));
-    if (ret != MPOOL_ERROR_NONE) {
+    if (ret != NT_MPOOL_ERROR_NONE) {
       final = ret;
     }
   }
@@ -1202,7 +1199,7 @@ int	mpool_clear(mpool_t *mp_p)
 }
 
 /*
- * void *mpool_alloc
+ * void *nt_mpool_alloc
  *
  * DESCRIPTION:
  *
@@ -1224,7 +1221,7 @@ int	mpool_clear(mpool_t *mp_p)
  * error_p <- Pointer to integer which, if not NULL, will be set with
  * a mpool error code.
  */
-void	*mpool_alloc(mpool_t *mp_p, const unsigned long byte_size,
+void	*nt_mpool_alloc(nt_mpool_t *mp_p, const unsigned long byte_size,
 		     int *error_p)
 {
   void	*addr;
@@ -1233,40 +1230,40 @@ void	*mpool_alloc(mpool_t *mp_p, const unsigned long byte_size,
     /* special case -- do a normal malloc */
     addr = (void *)malloc(byte_size);
     if (addr == NULL) {
-      SET_POINTER(error_p, MPOOL_ERROR_ALLOC);
+      SET_POINTER(error_p, NT_MPOOL_ERROR_ALLOC);
       return NULL;
     }
     else {
-      SET_POINTER(error_p, MPOOL_ERROR_NONE);
+      SET_POINTER(error_p, NT_MPOOL_ERROR_NONE);
       return addr;
     }
   }
   
-  if (mp_p->mp_magic != MPOOL_MAGIC) {
-    SET_POINTER(error_p, MPOOL_ERROR_PNT);
+  if (mp_p->mp_magic != NT_MPOOL_MAGIC) {
+    SET_POINTER(error_p, NT_MPOOL_ERROR_PNT);
     return NULL;
   }
-  if (mp_p->mp_magic2 != MPOOL_MAGIC) {
-    SET_POINTER(error_p, MPOOL_ERROR_POOL_OVER);
+  if (mp_p->mp_magic2 != NT_MPOOL_MAGIC) {
+    SET_POINTER(error_p, NT_MPOOL_ERROR_POOL_OVER);
     return NULL;
   }
   
   if (byte_size == 0) {
-    SET_POINTER(error_p, MPOOL_ERROR_ARG_INVALID);
+    SET_POINTER(error_p, NT_MPOOL_ERROR_ARG_INVALID);
     return NULL;
   }
   
   addr = alloc_mem(mp_p, byte_size, error_p);
   
   if (mp_p->mp_log_func != NULL) {
-    mp_p->mp_log_func(mp_p, MPOOL_FUNC_ALLOC, byte_size, 0, addr, NULL, 0);
+    mp_p->mp_log_func(mp_p, NT_MPOOL_FUNC_ALLOC, byte_size, 0, addr, NULL, 0);
   }
   
   return addr;
 }
 
 /*
- * void *mpool_calloc
+ * void *nt_mpool_calloc
  *
  * DESCRIPTION:
  *
@@ -1291,7 +1288,7 @@ void	*mpool_alloc(mpool_t *mp_p, const unsigned long byte_size,
  * error_p <- Pointer to integer which, if not NULL, will be set with
  * a mpool error code.
  */
-void	*mpool_calloc(mpool_t *mp_p, const unsigned long ele_n,
+void	*nt_mpool_calloc(nt_mpool_t *mp_p, const unsigned long ele_n,
 		      const unsigned long ele_size, int *error_p)
 {
   void		*addr;
@@ -1301,26 +1298,26 @@ void	*mpool_calloc(mpool_t *mp_p, const unsigned long ele_n,
     /* special case -- do a normal calloc */
     addr = (void *)calloc(ele_n, ele_size);
     if (addr == NULL) {
-      SET_POINTER(error_p, MPOOL_ERROR_ALLOC);
+      SET_POINTER(error_p, NT_MPOOL_ERROR_ALLOC);
       return NULL;
     } 
     else {
-      SET_POINTER(error_p, MPOOL_ERROR_NONE);
+      SET_POINTER(error_p, NT_MPOOL_ERROR_NONE);
       return addr;
     }
 
   }
-  if (mp_p->mp_magic != MPOOL_MAGIC) {
-    SET_POINTER(error_p, MPOOL_ERROR_PNT);
+  if (mp_p->mp_magic != NT_MPOOL_MAGIC) {
+    SET_POINTER(error_p, NT_MPOOL_ERROR_PNT);
     return NULL;
   }
-  if (mp_p->mp_magic2 != MPOOL_MAGIC) {
-    SET_POINTER(error_p, MPOOL_ERROR_POOL_OVER);
+  if (mp_p->mp_magic2 != NT_MPOOL_MAGIC) {
+    SET_POINTER(error_p, NT_MPOOL_ERROR_POOL_OVER);
     return NULL;
   }
   
   if (ele_n == 0 || ele_size == 0) {
-    SET_POINTER(error_p, MPOOL_ERROR_ARG_INVALID);
+    SET_POINTER(error_p, NT_MPOOL_ERROR_ARG_INVALID);
     return NULL;
   }
   
@@ -1331,7 +1328,7 @@ void	*mpool_calloc(mpool_t *mp_p, const unsigned long ele_n,
   }
   
   if (mp_p->mp_log_func != NULL) {
-    mp_p->mp_log_func(mp_p, MPOOL_FUNC_CALLOC, ele_size, ele_n, addr, NULL, 0);
+    mp_p->mp_log_func(mp_p, NT_MPOOL_FUNC_CALLOC, ele_size, ele_n, addr, NULL, 0);
   }
   
   /* NOTE: error_p set above */
@@ -1339,7 +1336,7 @@ void	*mpool_calloc(mpool_t *mp_p, const unsigned long ele_n,
 }
 
 /*
- * int mpool_free
+ * int nt_mpool_free
  *
  * DESCRIPTION:
  *
@@ -1347,7 +1344,7 @@ void	*mpool_calloc(mpool_t *mp_p, const unsigned long ele_n,
  *
  * RETURNS:
  *
- * Success - MPOOL_ERROR_NONE
+ * Success - NT_MPOOL_ERROR_NONE
  *
  * Failure - Mpool error code
  *
@@ -1360,36 +1357,36 @@ void	*mpool_calloc(mpool_t *mp_p, const unsigned long ele_n,
  *
  * size -> Size of the address being freed.
  */
-int	mpool_free(mpool_t *mp_p, void *addr, const unsigned long size)
+int	nt_mpool_free(nt_mpool_t *mp_p, void *addr, const unsigned long size)
 {
   if (mp_p == NULL) {
     /* special case -- do a normal free */
     free(addr);
-    return MPOOL_ERROR_NONE;
+    return NT_MPOOL_ERROR_NONE;
   }
-  if (mp_p->mp_magic != MPOOL_MAGIC) {
-    return MPOOL_ERROR_PNT;
+  if (mp_p->mp_magic != NT_MPOOL_MAGIC) {
+    return NT_MPOOL_ERROR_PNT;
   }
-  if (mp_p->mp_magic2 != MPOOL_MAGIC) {
-    return MPOOL_ERROR_POOL_OVER;
+  if (mp_p->mp_magic2 != NT_MPOOL_MAGIC) {
+    return NT_MPOOL_ERROR_POOL_OVER;
   }
   
   if (mp_p->mp_log_func != NULL) {
-    mp_p->mp_log_func(mp_p, MPOOL_FUNC_FREE, size, 0, NULL, addr, 0);
+    mp_p->mp_log_func(mp_p, NT_MPOOL_FUNC_FREE, size, 0, NULL, addr, 0);
   }
   
   if (addr == NULL) {
-    return MPOOL_ERROR_ARG_NULL;
+    return NT_MPOOL_ERROR_ARG_NULL;
   }
   if (size == 0) {
-    return MPOOL_ERROR_ARG_INVALID;
+    return NT_MPOOL_ERROR_ARG_INVALID;
   }
   
   return free_mem(mp_p, addr, size);
 }
 
 /*
- * void *mpool_resize
+ * void *nt_mpool_resize
  *
  * DESCRIPTION:
  *
@@ -1419,44 +1416,44 @@ int	mpool_free(mpool_t *mp_p, void *addr, const unsigned long size)
  * error_p <- Pointer to integer which, if not NULL, will be set with
  * a mpool error code.
  */
-void	*mpool_resize(mpool_t *mp_p, void *old_addr,
+void	*nt_mpool_resize(nt_mpool_t *mp_p, void *old_addr,
 		      const unsigned long old_byte_size,
 		      const unsigned long new_byte_size,
 		      int *error_p)
 {
   unsigned long	copy_size, new_size, old_size, fence;
   void		*new_addr;
-  mpool_block_t	*block_p;
+  nt_mpool_block_t	*block_p;
   int		ret;
   
   if (mp_p == NULL) {
     /* special case -- do a normal realloc */
     new_addr = (void *)realloc(old_addr, new_byte_size);
     if (new_addr == NULL) {
-      SET_POINTER(error_p, MPOOL_ERROR_ALLOC);
+      SET_POINTER(error_p, NT_MPOOL_ERROR_ALLOC);
       return NULL;
     } 
     else {
-      SET_POINTER(error_p, MPOOL_ERROR_NONE);
+      SET_POINTER(error_p, NT_MPOOL_ERROR_NONE);
       return new_addr;
     }
   }
   
-  if (mp_p->mp_magic != MPOOL_MAGIC) {
-    SET_POINTER(error_p, MPOOL_ERROR_PNT);
+  if (mp_p->mp_magic != NT_MPOOL_MAGIC) {
+    SET_POINTER(error_p, NT_MPOOL_ERROR_PNT);
     return NULL;
   }
-  if (mp_p->mp_magic2 != MPOOL_MAGIC) {
-    SET_POINTER(error_p, MPOOL_ERROR_POOL_OVER);
+  if (mp_p->mp_magic2 != NT_MPOOL_MAGIC) {
+    SET_POINTER(error_p, NT_MPOOL_ERROR_POOL_OVER);
     return NULL;
   }
   
   if (old_addr == NULL) {
-    SET_POINTER(error_p, MPOOL_ERROR_ARG_NULL);
+    SET_POINTER(error_p, NT_MPOOL_ERROR_ARG_NULL);
     return NULL;
   }
   if (old_byte_size == 0) {
-    SET_POINTER(error_p, MPOOL_ERROR_ARG_INVALID);
+    SET_POINTER(error_p, NT_MPOOL_ERROR_ARG_INVALID);
     return NULL;
   }
   
@@ -1465,10 +1462,10 @@ void	*mpool_resize(mpool_t *mp_p, void *old_addr,
    * the front of the block.
    */
   if (old_byte_size > MAX_BLOCK_USER_MEMORY(mp_p)) {
-    block_p = (mpool_block_t *)((char *)old_addr - sizeof(mpool_block_t));
+    block_p = (nt_mpool_block_t *)((char *)old_addr - sizeof(nt_mpool_block_t));
     if (block_p->mb_magic != BLOCK_MAGIC
 	|| block_p->mb_magic2 != BLOCK_MAGIC) {
-      SET_POINTER(error_p, MPOOL_ERROR_POOL_OVER);
+      SET_POINTER(error_p, NT_MPOOL_ERROR_POOL_OVER);
       return NULL;
     }
   }
@@ -1482,12 +1479,12 @@ void	*mpool_resize(mpool_t *mp_p, void *old_addr,
   }
   
   /* verify that the size matches exactly if we can */
-  if (BIT_IS_SET(mp_p->mp_flags, MPOOL_FLAG_NO_FREE)) {
+  if (BIT_IS_SET(mp_p->mp_flags, NT_MPOOL_FLAG_NO_FREE)) {
     fence = 0;
   }
   else if (old_size > 0) {
     ret = check_magic(old_addr, old_size);
-    if (ret != MPOOL_ERROR_NONE) {
+    if (ret != NT_MPOOL_ERROR_NONE) {
       SET_POINTER(error_p, ret);
       return NULL;
     }
@@ -1512,7 +1509,7 @@ void	*mpool_resize(mpool_t *mp_p, void *old_addr,
   /* we need to get another address */
   new_addr = alloc_mem(mp_p, new_byte_size, error_p);
   if (new_addr == NULL) {
-    /* error_p set in mpool_alloc */
+    /* error_p set in nt_mpool_alloc */
     return NULL;
   }
   
@@ -1526,7 +1523,7 @@ void	*mpool_resize(mpool_t *mp_p, void *old_addr,
   
   /* free the old address */
   ret = free_mem(mp_p, old_addr, old_byte_size);
-  if (ret != MPOOL_ERROR_NONE) {
+  if (ret != NT_MPOOL_ERROR_NONE) {
     /* if the old free failed, try and free the new address */
     (void)free_mem(mp_p, new_addr, new_byte_size);
     SET_POINTER(error_p, ret);
@@ -1534,16 +1531,16 @@ void	*mpool_resize(mpool_t *mp_p, void *old_addr,
   }
   
   if (mp_p->mp_log_func != NULL) {
-    mp_p->mp_log_func(mp_p, MPOOL_FUNC_RESIZE, new_byte_size,
+    mp_p->mp_log_func(mp_p, NT_MPOOL_FUNC_RESIZE, new_byte_size,
 		      0, new_addr, old_addr, old_byte_size);
   }
   
-  SET_POINTER(error_p, MPOOL_ERROR_NONE);
+  SET_POINTER(error_p, NT_MPOOL_ERROR_NONE);
   return new_addr;
 }
 
 /*
- * int mpool_stats
+ * int nt_mpool_stats
  *
  * DESCRIPTION:
  *
@@ -1551,7 +1548,7 @@ void	*mpool_resize(mpool_t *mp_p, void *old_addr,
  *
  * RETURNS:
  *
- * Success - MPOOL_ERROR_NONE
+ * Success - NT_MPOOL_ERROR_NONE
  *
  * Failure - Mpool error code
  *
@@ -1576,20 +1573,20 @@ void	*mpool_resize(mpool_t *mp_p, void *old_addr,
  * will be set to the total amount of space (including administrative
  * overhead) used by the pool.
  */
-int	mpool_stats(const mpool_t *mp_p, unsigned int *page_size_p,
+int	nt_mpool_stats(const nt_mpool_t *mp_p, unsigned int *page_size_p,
 		    unsigned long *num_alloced_p,
 		    unsigned long *user_alloced_p,
 		    unsigned long *max_alloced_p,
 		    unsigned long *tot_alloced_p)
 {
   if (mp_p == NULL) {
-    return MPOOL_ERROR_ARG_NULL;
+    return NT_MPOOL_ERROR_ARG_NULL;
   }
-  if (mp_p->mp_magic != MPOOL_MAGIC) {
-    return MPOOL_ERROR_PNT;
+  if (mp_p->mp_magic != NT_MPOOL_MAGIC) {
+    return NT_MPOOL_ERROR_PNT;
   }
-  if (mp_p->mp_magic2 != MPOOL_MAGIC) {
-    return MPOOL_ERROR_POOL_OVER;
+  if (mp_p->mp_magic2 != NT_MPOOL_MAGIC) {
+    return NT_MPOOL_ERROR_POOL_OVER;
   }
   
   SET_POINTER(page_size_p, mp_p->mp_page_size);
@@ -1598,20 +1595,20 @@ int	mpool_stats(const mpool_t *mp_p, unsigned int *page_size_p,
   SET_POINTER(max_alloced_p, mp_p->mp_max_alloc);
   SET_POINTER(tot_alloced_p, SIZE_OF_PAGES(mp_p, mp_p->mp_page_c));
   
-  return MPOOL_ERROR_NONE;
+  return NT_MPOOL_ERROR_NONE;
 }
 
 /*
- * int mpool_set_log_func
+ * int nt_mpool_set_log_func
  *
  * DESCRIPTION:
  *
  * Set a logging callback function to be called whenever there was a
- * memory transaction.  See mpool_log_func_t.
+ * memory transaction.  See nt_mpool_log_func_t.
  *
  * RETURNS:
  *
- * Success - MPOOL_ERROR_NONE
+ * Success - NT_MPOOL_ERROR_NONE
  *
  * Failure - Mpool error code
  *
@@ -1622,39 +1619,39 @@ int	mpool_stats(const mpool_t *mp_p, unsigned int *page_size_p,
  * log_func -> Log function (defined in mpool.h) which will be called
  * with each mpool transaction.
  */
-int	mpool_set_log_func(mpool_t *mp_p, mpool_log_func_t log_func)
+int	nt_mpool_set_log_func(nt_mpool_t *mp_p, nt_mpool_log_func_t log_func)
 {
   if (mp_p == NULL) {
-    return MPOOL_ERROR_ARG_NULL;
+    return NT_MPOOL_ERROR_ARG_NULL;
   }
-  if (mp_p->mp_magic != MPOOL_MAGIC) {
-    return MPOOL_ERROR_PNT;
+  if (mp_p->mp_magic != NT_MPOOL_MAGIC) {
+    return NT_MPOOL_ERROR_PNT;
   }
-  if (mp_p->mp_magic2 != MPOOL_MAGIC) {
-    return MPOOL_ERROR_POOL_OVER;
+  if (mp_p->mp_magic2 != NT_MPOOL_MAGIC) {
+    return NT_MPOOL_ERROR_POOL_OVER;
   }
   
   mp_p->mp_log_func = log_func;
   
-  return MPOOL_ERROR_NONE;
+  return NT_MPOOL_ERROR_NONE;
 }
 
 /*
- * int mpool_set_max_pages
+ * int nt_mpool_set_max_pages
  *
  * DESCRIPTION:
  *
  * Set the maximum number of pages that the library will use.  Once it
- * hits the limit it will return MPOOL_ERROR_NO_PAGES.
+ * hits the limit it will return NT_MPOOL_ERROR_NO_PAGES.
  *
- * NOTE: if the MPOOL_FLAG_HEAVY_PACKING is set then this max-pages
+ * NOTE: if the NT_MPOOL_FLAG_HEAVY_PACKING is set then this max-pages
  * value will include the page with the mpool header structure in it.
  * If the flag is _not_ set then the max-pages will not include this
  * first page.
  *
  * RETURNS:
  *
- * Success - MPOOL_ERROR_NONE
+ * Success - NT_MPOOL_ERROR_NONE
  *
  * Failure - Mpool error code
  *
@@ -1664,19 +1661,19 @@ int	mpool_set_log_func(mpool_t *mp_p, mpool_log_func_t log_func)
  *
  * max_pages -> Maximum number of pages used by the library.
  */
-int	mpool_set_max_pages(mpool_t *mp_p, const unsigned int max_pages)
+int	nt_mpool_set_max_pages(nt_mpool_t *mp_p, const unsigned int max_pages)
 {
   if (mp_p == NULL) {
-    return MPOOL_ERROR_ARG_NULL;
+    return NT_MPOOL_ERROR_ARG_NULL;
   }
-  if (mp_p->mp_magic != MPOOL_MAGIC) {
-    return MPOOL_ERROR_PNT;
+  if (mp_p->mp_magic != NT_MPOOL_MAGIC) {
+    return NT_MPOOL_ERROR_PNT;
   }
-  if (mp_p->mp_magic2 != MPOOL_MAGIC) {
-    return MPOOL_ERROR_POOL_OVER;
+  if (mp_p->mp_magic2 != NT_MPOOL_MAGIC) {
+    return NT_MPOOL_ERROR_POOL_OVER;
   }
   
-  if (BIT_IS_SET(mp_p->mp_flags, MPOOL_FLAG_HEAVY_PACKING)) {
+  if (BIT_IS_SET(mp_p->mp_flags, NT_MPOOL_FLAG_HEAVY_PACKING)) {
     mp_p->mp_max_pages = max_pages;
   }
   else {
@@ -1687,11 +1684,11 @@ int	mpool_set_max_pages(mpool_t *mp_p, const unsigned int max_pages)
     mp_p->mp_max_pages = max_pages + 1;
   }
   
-  return MPOOL_ERROR_NONE;
+  return NT_MPOOL_ERROR_NONE;
 }
 
 /*
- * const char *mpool_strerror
+ * const char *nt_mpool_strerror
  *
  * DESCRIPTION:
  *
@@ -1707,70 +1704,70 @@ int	mpool_set_max_pages(mpool_t *mp_p, const unsigned int max_pages)
  *
  * error -> Error number that we are converting.
  */
-const char	*mpool_strerror(const int error)
+const char	*nt_mpool_strerror(const int error)
 {
   switch (error) {
-  case MPOOL_ERROR_NONE:
+  case NT_MPOOL_ERROR_NONE:
     return "no error";
     break;
-  case MPOOL_ERROR_ARG_NULL:
+  case NT_MPOOL_ERROR_ARG_NULL:
     return "function argument is null";
     break;
-  case MPOOL_ERROR_ARG_INVALID:
+  case NT_MPOOL_ERROR_ARG_INVALID:
     return "function argument is invalid";
     break;
-  case MPOOL_ERROR_PNT:
+  case NT_MPOOL_ERROR_PNT:
     return "invalid mpool pointer";
     break;
-  case MPOOL_ERROR_POOL_OVER:
+  case NT_MPOOL_ERROR_POOL_OVER:
     return "mpool structure was overwritten";
     break;
-  case MPOOL_ERROR_PAGE_SIZE:
+  case NT_MPOOL_ERROR_PAGE_SIZE:
     return "could not get system page-size";
     break;
-  case MPOOL_ERROR_OPEN_ZERO:
+  case NT_MPOOL_ERROR_OPEN_ZERO:
     return "could not open /dev/zero";
     break;
-  case MPOOL_ERROR_NO_MEM:
+  case NT_MPOOL_ERROR_NO_MEM:
     return "no memory available";
     break;
-  case MPOOL_ERROR_MMAP:
+  case NT_MPOOL_ERROR_MMAP:
     return "problems with mmap";
     break;
-  case MPOOL_ERROR_SIZE:
+  case NT_MPOOL_ERROR_SIZE:
     return "error processing requested size";
     break;
-  case MPOOL_ERROR_TOO_BIG:
+  case NT_MPOOL_ERROR_TOO_BIG:
     return "allocation exceeds pool max size";
     break;
-  case MPOOL_ERROR_MEM:
+  case NT_MPOOL_ERROR_MEM:
     return "invalid memory address";
     break;
-  case MPOOL_ERROR_MEM_OVER:
+  case NT_MPOOL_ERROR_MEM_OVER:
     return "memory lower bounds overwritten";
     break;
-  case MPOOL_ERROR_NOT_FOUND:
+  case NT_MPOOL_ERROR_NOT_FOUND:
     return "memory block not found in pool";
     break;
-  case MPOOL_ERROR_IS_FREE:
+  case NT_MPOOL_ERROR_IS_FREE:
     return "memory address has already been freed";
     break;
-  case MPOOL_ERROR_BLOCK_STAT:
+  case NT_MPOOL_ERROR_BLOCK_STAT:
     return "invalid internal block status";
     break;
-  case MPOOL_ERROR_FREE_ADDR:
+  case NT_MPOOL_ERROR_FREE_ADDR:
     return "invalid internal free address";
     break;
-  case MPOOL_ERROR_SBRK_CONTIG:
+  case NT_MPOOL_ERROR_SBRK_CONTIG:
     return "sbrk did not return contiguous memory";
     break;
-  case MPOOL_ERROR_NO_PAGES:
+  case NT_MPOOL_ERROR_NO_PAGES:
     return "no available pages left in pool";
     break;
-  case MPOOL_ERROR_ALLOC:
+  case NT_MPOOL_ERROR_ALLOC:
     return "system alloc function failed";
     break;
-  case MPOOL_ERROR_PNT_OVER:
+  case NT_MPOOL_ERROR_PNT_OVER:
     return "user pointer admin space overwritten";
     break;
   default:

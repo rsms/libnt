@@ -18,7 +18,7 @@
  *
  * The author may be reached via http://256.com/gray/
  *
- * $Id: mpool_t.c,v 1.2 2005/05/20 20:08:55 gray Exp $
+ * $Id: nt_mpool_t.c,v 1.2 2005/05/20 20:08:55 gray Exp $
  */
 
 /*
@@ -34,12 +34,6 @@
 #include <unistd.h>
 
 #include "../src/mpool.h"
-
-#ifdef __GNUC__
-#ident "$Id: mpool_t.c,v 1.2 2005/05/20 20:08:55 gray Exp $"
-#else
-static char *rcs_id = "$Id: mpool_t.c,v 1.2 2005/05/20 20:08:55 gray Exp $";
-#endif
 
 #define DEFAULT_ITERATIONS	10000
 #define MAX_POINTERS		1024
@@ -172,7 +166,7 @@ static	void	*get_address(void)
  *
  * iter_n -> Number of iterations to run.
  */
-static	void	do_random(mpool_t *pool, const int iter_n)
+static	void	do_random(nt_mpool_t *pool, const int iter_n)
 {
   int		iter_c, free_c, ret;
   long		max = max_alloc, amount;
@@ -185,12 +179,12 @@ static	void	do_random(mpool_t *pool, const int iter_n)
     pointer_grid = (pnt_info_t *)malloc(sizeof(pnt_info_t) * max_pointers);
   }
   else {
-    pointer_grid = (pnt_info_t *)mpool_alloc(pool,
+    pointer_grid = (pnt_info_t *)nt_mpool_alloc(pool,
 					     sizeof(pnt_info_t) * max_pointers,
 					     &ret);
   }
   if (pointer_grid == NULL) {
-    (void)printf("mpool_t: problems allocating %d pointer slots: %s\n",
+    (void)printf("nt_mpool_t: problems allocating %d pointer slots: %s\n",
 		 max_pointers, strerror(errno));
     return;
   }
@@ -215,7 +209,7 @@ static	void	do_random(mpool_t *pool, const int iter_n)
     }
     
     if (free_c < max_pointers && used_p == NULL) {
-      (void)fprintf(stderr, "mpool_t: problem with test program free list\n");
+      (void)fprintf(stderr, "nt_mpool_t: problem with test program free list\n");
       exit(1);
     }
     
@@ -246,7 +240,7 @@ static	void	do_random(mpool_t *pool, const int iter_n)
 	  pnt_p->pi_pnt = malloc(amount);
 	}
 	else {
-	  pnt_p->pi_pnt = mpool_alloc(pool, amount, &ret);
+	  pnt_p->pi_pnt = nt_mpool_alloc(pool, amount, &ret);
 	}
 	
 	if (verbose_b) {
@@ -258,7 +252,7 @@ static	void	do_random(mpool_t *pool, const int iter_n)
 	if (pnt_p->pi_pnt == NULL) {
 	  (void)printf("malloc of %ld failed: %s\n",
 		       amount,
-		       (use_malloc_b ? strerror(errno) : mpool_strerror(ret)));
+		       (use_malloc_b ? strerror(errno) : nt_mpool_strerror(ret)));
 	}
 	pnt_p->pi_size = amount;
 	break;
@@ -269,7 +263,7 @@ static	void	do_random(mpool_t *pool, const int iter_n)
 	  pnt_p->pi_pnt = calloc(amount, sizeof(char));
 	}
 	else {
-	  pnt_p->pi_pnt = mpool_calloc(pool, amount, sizeof(char), &ret);
+	  pnt_p->pi_pnt = nt_mpool_calloc(pool, amount, sizeof(char), &ret);
 	}
 	
 	if (verbose_b) {
@@ -282,7 +276,7 @@ static	void	do_random(mpool_t *pool, const int iter_n)
 	if (pnt_p->pi_pnt == NULL) {
 	  (void)printf("calloc of %ld failed: %s\n",
 		       amount,
-		       (use_malloc_b ? strerror(errno) : mpool_strerror(ret)));
+		       (use_malloc_b ? strerror(errno) : nt_mpool_strerror(ret)));
 	}
 	else {
 	  for (chunk_p = pnt_p->pi_pnt;
@@ -312,7 +306,7 @@ static	void	do_random(mpool_t *pool, const int iter_n)
 	  new_pnt = realloc(pnt_p->pi_pnt, amount);
 	}
 	else {
-	  new_pnt = mpool_resize(pool, pnt_p->pi_pnt, pnt_p->pi_size, amount,
+	  new_pnt = nt_mpool_resize(pool, pnt_p->pi_pnt, pnt_p->pi_size, amount,
 				 &ret);
 	}
 	
@@ -326,7 +320,7 @@ static	void	do_random(mpool_t *pool, const int iter_n)
 	if (new_pnt == NULL) {
 	  (void)printf("resize of %#lx old size %ld new size %ld failed: %s\n",
 		       (long)pnt_p->pi_pnt, pnt_p->pi_size, amount,
-		       (use_malloc_b ? strerror(errno) : mpool_strerror(ret)));
+		       (use_malloc_b ? strerror(errno) : nt_mpool_strerror(ret)));
 	  pnt_p->pi_pnt = NULL;
 	  pnt_p->pi_size = 0;
 	}
@@ -381,11 +375,11 @@ static	void	do_random(mpool_t *pool, const int iter_n)
       free(pnt_p->pi_pnt);
     }
     else {
-      ret = mpool_free(pool, pnt_p->pi_pnt, pnt_p->pi_size);
-      if (ret != MPOOL_ERROR_NONE) {
+      ret = nt_mpool_free(pool, pnt_p->pi_pnt, pnt_p->pi_size);
+      if (ret != NT_MPOOL_ERROR_NONE) {
 	(void)printf("free error on pointer '%#lx' of size %ld: %s\n",
 		     (long)pnt_p->pi_pnt, pnt_p->pi_size,
-		     mpool_strerror(ret));
+		     nt_mpool_strerror(ret));
       }
     }
     
@@ -411,11 +405,11 @@ static	void	do_random(mpool_t *pool, const int iter_n)
 	free(pnt_p->pi_pnt);
       }
       else {
-	ret = mpool_free(pool, pnt_p->pi_pnt, pnt_p->pi_size);
-	if (ret != MPOOL_ERROR_NONE) {
+	ret = nt_mpool_free(pool, pnt_p->pi_pnt, pnt_p->pi_size);
+	if (ret != NT_MPOOL_ERROR_NONE) {
 	  (void)printf("free error on pointer '%#lx' of size %ld: %s\n",
 		       (long)pnt_p->pi_pnt, pnt_p->pi_size,
-		       mpool_strerror(ret));
+		       nt_mpool_strerror(ret));
 	}
       }
     }
@@ -425,9 +419,9 @@ static	void	do_random(mpool_t *pool, const int iter_n)
     free(pointer_grid);
   }
   else {
-    ret = mpool_free(pool, pointer_grid, sizeof(pnt_info_t) * max_pointers);
-    if (ret != MPOOL_ERROR_NONE) {
-      (void)printf("free error on grid pointer: %s\n", mpool_strerror(ret));
+    ret = nt_mpool_free(pool, pointer_grid, sizeof(pnt_info_t) * max_pointers);
+    if (ret != NT_MPOOL_ERROR_NONE) {
+      (void)printf("free error on grid pointer: %s\n", nt_mpool_strerror(ret));
     }
   }
 }
@@ -447,7 +441,7 @@ static	void	do_random(mpool_t *pool, const int iter_n)
  *
  * pool <-> Out memory pool.
  */
-static	void	do_interactive(mpool_t *pool)
+static	void	do_interactive(nt_mpool_t *pool)
 {
   int		len, ret;
   char		line[128], *line_p;
@@ -499,9 +493,9 @@ static	void	do_interactive(mpool_t *pool)
 	break;
       }
       size = atoi(line);
-      pnt = mpool_alloc(pool, size, &ret);
+      pnt = nt_mpool_alloc(pool, size, &ret);
       if (pnt == NULL) {
-	(void)printf("malloc(%d) failed: %s\n", size, mpool_strerror(ret));
+	(void)printf("malloc(%d) failed: %s\n", size, nt_mpool_strerror(ret));
       }
       else {
 	(void)printf("malloc(%d) returned '%#lx'\n", size, (long)pnt);
@@ -517,9 +511,9 @@ static	void	do_interactive(mpool_t *pool)
 	break;
       }
       size = atoi(line);
-      pnt = mpool_calloc(pool, size, sizeof(char), &ret);
+      pnt = nt_mpool_calloc(pool, size, sizeof(char), &ret);
       if (pnt == NULL) {
-	(void)printf("calloc(%d) failed: %s\n", size, mpool_strerror(ret));
+	(void)printf("calloc(%d) failed: %s\n", size, nt_mpool_strerror(ret));
       }
       else {
 	(void)printf("calloc(%d) returned '%#lx'\n", size, (long)pnt);
@@ -543,10 +537,10 @@ static	void	do_interactive(mpool_t *pool)
       }
       size = atoi(line);
       
-      new_pnt = mpool_resize(pool, pnt, old_size, size, &ret);
+      new_pnt = nt_mpool_resize(pool, pnt, old_size, size, &ret);
       if (new_pnt == NULL) {
 	(void)printf("resize(%#lx, %d) failed: %s\n",
-		     (long)pnt, size, mpool_strerror(ret));
+		     (long)pnt, size, nt_mpool_strerror(ret));
       }
       else {
 	(void)printf("resize(%#lx, %d) returned '%#lx'\n",
@@ -565,20 +559,20 @@ static	void	do_interactive(mpool_t *pool)
 	break;
       }
       old_size = atoi(line);
-      ret = mpool_free(pool, pnt, old_size);
-      if (ret != MPOOL_ERROR_NONE) {
-	(void)fprintf(stderr, "free failed: %s\n", mpool_strerror(ret));
+      ret = nt_mpool_free(pool, pnt, old_size);
+      if (ret != NT_MPOOL_ERROR_NONE) {
+	(void)fprintf(stderr, "free failed: %s\n", nt_mpool_strerror(ret));
       }
       continue;
     }
     
     if (strncmp(line, "clear", len) == 0) {
-      ret = mpool_clear(pool);
-      if (ret == MPOOL_ERROR_NONE) {
+      ret = nt_mpool_clear(pool);
+      if (ret == NT_MPOOL_ERROR_NONE) {
 	(void)fprintf(stderr, "clear succeeded\n");
       }
       else {
-	(void)fprintf(stderr, "clear failed: %s\n", mpool_strerror(ret));
+	(void)fprintf(stderr, "clear failed: %s\n", nt_mpool_strerror(ret));
       }
       continue;
     }
@@ -635,17 +629,17 @@ static	void	do_interactive(mpool_t *pool)
  *
  * byte_size -> Optionally specified byte size.
  *
- * ele_n -> Optionally specified element number.  For mpool_calloc
+ * ele_n -> Optionally specified element number.  For nt_mpool_calloc
  * only.
  *
- * new_addr -> Optionally specified new address.  For mpool_alloc,
- * mpool_calloc, and mpool_resize only.
+ * new_addr -> Optionally specified new address.  For nt_mpool_alloc,
+ * nt_mpool_calloc, and nt_mpool_resize only.
  *
- * old_addr -> Optionally specified old address.  For mpool_resize and
- * mpool_free only.
+ * old_addr -> Optionally specified old address.  For nt_mpool_resize and
+ * nt_mpool_free only.
  *
  * old_byte_size -> Optionally specified old byte size.  For
- * mpool_resize only.
+ * nt_mpool_resize only.
  */
 static	void	log_func(const void *mp_p, const int func_id,
 			 const unsigned long byte_size,
@@ -657,29 +651,29 @@ static	void	log_func(const void *mp_p, const int func_id,
   
   switch (func_id) {
     
-  case MPOOL_FUNC_CLOSE:
+  case NT_MPOOL_FUNC_CLOSE:
     (void)printf("close\n");
     break;
     
-  case MPOOL_FUNC_CLEAR:
+  case NT_MPOOL_FUNC_CLEAR:
     (void)printf("clear\n");
     break;
     
-  case MPOOL_FUNC_ALLOC:
+  case NT_MPOOL_FUNC_ALLOC:
     (void)printf("alloc %lu bytes got %#lx\n",
 		 byte_size, (long)new_addr);
     break;
     
-  case MPOOL_FUNC_CALLOC:
+  case NT_MPOOL_FUNC_CALLOC:
     (void)printf("calloc %lu ele size, %lu ele number, got %#lx\n",
 		 byte_size, ele_n, (long)new_addr);
     break;
     
-  case MPOOL_FUNC_FREE:
+  case NT_MPOOL_FUNC_FREE:
     (void)printf("free %#lx of %lu bytes\n", (long)old_addr, byte_size);
     break;
     
-  case MPOOL_FUNC_RESIZE:
+  case NT_MPOOL_FUNC_RESIZE:
     (void)printf("resize %#lx of %lu bytes to %lu bytes, got %#lx\n",
 		 (long)old_addr, old_byte_size, byte_size,
 		 (long)new_addr);
@@ -709,16 +703,16 @@ static	void	log_func(const void *mp_p, const int func_id,
 static	void	usage(void)
 {
   (void)fprintf(stderr,
-		"Usage: mpool_t [-bhHilMnsv] [-m size] [-p number] "
+		"Usage: nt_mpool_t [-bhHilMnsv] [-m size] [-p number] "
 		"[-P size] [-S seed] [-t times]\n");
   (void)fprintf(stderr,
-		"  -b              set MPOOL_FLAG_BEST_FIT\n"
-		"  -h              set MPOOL_FLAG_NO_FREE\n"
+		"  -b              set NT_MPOOL_FLAG_BEST_FIT\n"
+		"  -h              set NT_MPOOL_FLAG_NO_FREE\n"
 		"  -H              use system heap not mpool\n"
 		"  -i              turn on interactive mode\n"
 		"  -l              log memory transactions\n"
 		"  -M              max number pages in mpool\n"
-		"  -n              set MPOOL_FLAG_NO_FREE\n"
+		"  -n              set NT_MPOOL_FLAG_NO_FREE\n"
 		"  -s              use sbrk instead of mmap\n"
 		"  -v              enable verbose messages\n"
 		"  -m size         maximum allocation to test\n"
@@ -829,7 +823,7 @@ int	main(int argc, char **argv)
   int		ret;
   unsigned int	flags = 0, pool_page_size;
   unsigned long	num_alloced, user_alloced, max_alloced, tot_alloced;
-  mpool_t	*pool;
+  nt_mpool_t	*pool;
   
   process_args(argc, argv);
   
@@ -842,39 +836,39 @@ int	main(int argc, char **argv)
   (void)printf("Random seed is %u\n", seed_random);
   
   if (best_fit_b) {
-    flags |= MPOOL_FLAG_BEST_FIT;
+    flags |= NT_MPOOL_FLAG_BEST_FIT;
   }
   if (heavy_pack_b) {
-    flags |= MPOOL_FLAG_HEAVY_PACKING;
+    flags |= NT_MPOOL_FLAG_HEAVY_PACKING;
   }
   if (no_free_b) {
-    flags |= MPOOL_FLAG_NO_FREE;
+    flags |= NT_MPOOL_FLAG_NO_FREE;
   }
   if (use_sbrk_b) {
-    flags |= MPOOL_FLAG_USE_SBRK;
+    flags |= NT_MPOOL_FLAG_USE_SBRK;
   }
   
   /* open our memory pool */
-  pool = mpool_open(flags, page_size, NULL, &ret);
+  pool = nt_mpool_open(flags, page_size, NULL, &ret);
   if (pool == NULL) {
-    (void)fprintf(stderr, "Error in mpool_open: %s\n", mpool_strerror(ret));
+    (void)fprintf(stderr, "Error in nt_mpool_open: %s\n", nt_mpool_strerror(ret));
     exit(1);
   }
   
   /* are we logging transactions */
   if (log_trxn_b) {
-    ret = mpool_set_log_func(pool, log_func);
-    if (ret != MPOOL_ERROR_NONE) {
-      (void)fprintf(stderr, "Error in mpool_set_log_func: %s\n",
-		    mpool_strerror(ret));
+    ret = nt_mpool_set_log_func(pool, log_func);
+    if (ret != NT_MPOOL_ERROR_NONE) {
+      (void)fprintf(stderr, "Error in nt_mpool_set_log_func: %s\n",
+		    nt_mpool_strerror(ret));
     }
   }
   
   if (max_pages_n > 0) {
-    ret = mpool_set_max_pages(pool, max_pages_n);
-    if (ret != MPOOL_ERROR_NONE) {
-      (void)fprintf(stderr, "Error in mpool_set_max_pages: %s\n",
-		    mpool_strerror(ret));
+    ret = nt_mpool_set_max_pages(pool, max_pages_n);
+    if (ret != NT_MPOOL_ERROR_NONE) {
+      (void)fprintf(stderr, "Error in nt_mpool_set_max_pages: %s\n",
+		    nt_mpool_strerror(ret));
     }
   }
   
@@ -890,9 +884,9 @@ int	main(int argc, char **argv)
   }
   
   /* get stats from the pool */
-  ret = mpool_stats(pool, &pool_page_size, &num_alloced, &user_alloced,
+  ret = nt_mpool_stats(pool, &pool_page_size, &num_alloced, &user_alloced,
 		    &max_alloced, &tot_alloced);
-  if (ret == MPOOL_ERROR_NONE) {
+  if (ret == NT_MPOOL_ERROR_NONE) {
     (void)printf("Pool page size = %d.  Number active allocated = %lu\n",
 		 pool_page_size, num_alloced);
     (void)printf("User bytes allocated = %lu.  Max space allocated = %lu\n",
@@ -900,13 +894,13 @@ int	main(int argc, char **argv)
     (void)printf("Total space allocated = %lu\n", tot_alloced);
   }
   else {
-    (void)fprintf(stderr, "Error in mpool_stats: %s\n", mpool_strerror(ret));
+    (void)fprintf(stderr, "Error in nt_mpool_stats: %s\n", nt_mpool_strerror(ret));
   }
   
   /* close the pool */
-  ret = mpool_close(pool);
-  if (ret != MPOOL_ERROR_NONE) {
-    (void)fprintf(stderr, "Error in mpool_close: %s\n", mpool_strerror(ret));
+  ret = nt_mpool_close(pool);
+  if (ret != NT_MPOOL_ERROR_NONE) {
+    (void)fprintf(stderr, "Error in nt_mpool_close: %s\n", nt_mpool_strerror(ret));
     exit(1);
   }
   
