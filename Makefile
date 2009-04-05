@@ -1,8 +1,9 @@
-.PHONY: all lib examples test
+.PHONY: all lib examples tests
 
 S_SRC=src/atomic_queue_asmimpl.s
 C_SRC=src/util.c src/machine.c \
-      src/atomic_queue.c src/freelist.c \
+      src/mpool.c \
+      src/atomic_queue.c \
       src/event_base.c \
       src/tcp_socket.c src/tcp_server.c src/tcp_client.c
 
@@ -11,6 +12,9 @@ C_OBJ = ${C_SRC:.c=.o}
 
 OBJECTS=${S_OBJ} ${C_OBJ}
 #SOURCES=${S_SRC} ${C_SRC}
+TESTS = mpool atomic_queue
+TESTS_SRC = $(foreach n,$(TESTS),tests/$(n).c)
+TESTS_OBJ = ${TESTS_SRC:.c=.o}
 
 INCDIR = -I/opt/local/include
 LIBSDIR = -L/opt/local/lib
@@ -28,20 +32,30 @@ LIBS += -levent -lSystem
 LD_DYLIB_FLAGS = 
 DIRS = build build/libs build/examples build/tests
 
-all: lib test
+all: lib tests
 
 lib: ${DIRS} build/libs/libnt.a build/libs/libnt.dylib
 
 examples: ex_echo
 
-test: test_atomic_queue
+tests: ${TESTS}
 
 ex_echo: lib build/libs/libnt.dylib examples/ex_echo.c
 	$(CC) $(CFLAGS) $(TOOL_CFLAGS) $(LIBSDIR) examples/ex_echo.c -o build/example_echo
 
+$(TESTS): lib ${TESTS_OBJ}
+	@echo running test $@
+	@rm -f build/tests/$@
+	@$(CC) $(LDFLAGS) -Lbuild/libs -lnt tests/$@.o -o build/tests/$@
+	@./build/tests/$@ > /dev/null
+
 test_atomic_queue: lib build/libs/libnt.dylib tests/atomic_queue.c
 	$(CC) $(CFLAGS) $(TOOL_CFLAGS) $(LIBSDIR) tests/atomic_queue.c -o build/test_atomic_queue
-	./build/test_atomic_queue
+	@./build/test_atomic_queue > /dev/null
+
+test_mpool: lib build/libs/libnt.dylib tests/mpool.c
+	$(CC) $(CFLAGS) $(TOOL_CFLAGS) $(LIBSDIR) tests/mpool.c -o build/test_mpool
+	@./build/test_mpool > /dev/null
 
 ${DIRS}:
 	@mkdir $@
@@ -59,5 +73,5 @@ build/libs/libnt.dylib: ${OBJECTS}
 	$(LD) -dynamic -o build/libs/libnt.dylib $(LDFLAGS) $(LIBSDIR) $(LD_DYLIB_FLAGS) $(LIBS) ${OBJECTS}
 
 clean:
-	rm -rf ${DIRS} src/*.o
+	rm -rf ${DIRS} src/*.o tests/*.o
 
