@@ -54,8 +54,6 @@ static void on_accept(int fd, short ev, nt_event_base_server *bs) {
 #include <string.h>
 #include <libkern/OSAtomic.h>
 int testq() {
-  
-  
   typedef struct elem {
     long    data1;
     struct elem *link;
@@ -63,6 +61,8 @@ int testq() {
   } elem_t;
 
   elem_t fred, mary, *p;
+  
+  // -------------
 
   OSQueueHead q = OS_ATOMIC_QUEUE_INIT;
 
@@ -75,16 +75,10 @@ int testq() {
   
   nt_atomic_queue_head q2 = NT_ATOMIC_QUEUE_INIT;
   
-  nt_atomic_queue_put(&q2, &fred, offsetof(elem_t,link));
-  nt_atomic_queue_put(&q2, &mary, offsetof(elem_t,link));
+  nt_atomic_enqueue(&q2, &fred, offsetof(elem_t,link));
+  nt_atomic_enqueue(&q2, &mary, offsetof(elem_t,link));
   
-  /*char *rp = NULL;
-  rp = (char *)nt_atomic_queue_get((void **)&q, 0);
-  printf("rp = %s\n", rp);
-  rp = (char *)nt_atomic_queue_get((void **)&q, 0);
-  printf("rp = %s\n", rp);
-  rp = (char *)nt_atomic_queue_get((void **)&q, 0);
-  printf("rp = %s\n", rp);*/
+  p = nt_atomic_dequeue( &q2, offsetof(elem_t,link) );
   
   return 1;
 }

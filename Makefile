@@ -2,7 +2,7 @@
 
 S_SRC=src/atomic_queue.s
 C_SRC=src/util.c \
-      src/freelist.c \
+      src/atomic_queue_e.c src/freelist.c \
       src/event_base.c \
       src/tcp_socket.c src/tcp_server.c src/tcp_client.c
 
@@ -20,8 +20,9 @@ CFLAGS+=-DDEBUG=1
 CFLAGS += -I/opt/local/include
 
 LD=/usr/bin/libtool
-LIBS += -levent
-LD_DYLIB_FLAGS=-L/opt/local/lib -lgcc_s.1 -lSystem
+LIBS += -levent -lSystem
+#LIBS += -lgcc_s.1
+LD_DYLIB_FLAGS=-L/opt/local/lib
 DIRS = libs objs/src
 
 all: lib
@@ -29,7 +30,7 @@ all: lib
 lib: ${DIRS} libs/libnt.a libs/libnt.dylib
 
 ex_echo: lib libs/libnt.dylib examples/ex_echo.c
-	$(CC) $(CFLAGS) $(CPPFLAGS) examples/ex_echo.c -o examples/ex_echo -lnt -Llibs
+	$(CC) $(CFLAGS) $(CPPFLAGS) examples/ex_echo.c -o examples/ex_echo -L/opt/local/lib -Llibs -lnt -levent
 
 clean_ex_echo:
 	rm -rf ex_echo ex_echo.dSYM
@@ -47,7 +48,7 @@ libs/libnt.a: ${OBJECTS}
 	$(LD) -static -o libs/libnt.a $(LDFLAGS) $(LIBSDIR) ${OBJECTS}
 
 libs/libnt.dylib: ${OBJECTS}
-	$(LD) -dynamic -o libs/libnt.dylib $(LDFLAGS) $(LIBSDIR) $(LIBS) $(LD_DYLIB_FLAGS) ${OBJECTS}
+	$(LD) -dynamic -o libs/libnt.dylib $(LDFLAGS) $(LIBSDIR) $(LD_DYLIB_FLAGS) $(LIBS) ${OBJECTS}
 
 clean:
 	rm -rf ${DIRS} src/*.o
