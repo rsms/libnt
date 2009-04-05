@@ -29,7 +29,7 @@
  * Choose a best fit algorithm not first fit.  This takes more CPU
  * time but will result in a tighter heap.
  */
-#define NT_MPOOL_FLAG_BEST_FIT		(1<<0)
+#define NT_MPOOL_FLAG_BEST_FIT    (1<<0)
 
 /*
  * By default the library adds 2 bytes onto all allocations to insert
@@ -38,7 +38,7 @@
  * going to be performed on the pool and to not waste memory on these
  * bytes.
  */
-#define NT_MPOOL_FLAG_NO_FREE		(1<<1)
+#define NT_MPOOL_FLAG_NO_FREE    (1<<1)
 
 /*
  * This enables very heavy packing at the possible expense of CPU.
@@ -53,48 +53,48 @@
  * and then it will give up.  This flag forces it to look until it
  * finds it.
  */
-#define NT_MPOOL_FLAG_HEAVY_PACKING	(1<<2)
+#define NT_MPOOL_FLAG_HEAVY_PACKING  (1<<2)
 
 /*
  * Use sbrk not mmap to allocate pages.  This is not recommended for
  * normal use.
  */
-#define NT_MPOOL_FLAG_USE_SBRK		(1<<3)
+#define NT_MPOOL_FLAG_USE_SBRK    (1<<3)
 
 /*
  * Mpool error codes
  */
-#define NT_MPOOL_ERROR_NONE	1	/* no error */
-#define NT_MPOOL_ERROR_ARG_NULL	2	/* function argument is null */
-#define NT_MPOOL_ERROR_ARG_INVALID	3	/* function argument is invalid */
-#define NT_MPOOL_ERROR_PNT		4	/* invalid mpool pointer */
-#define NT_MPOOL_ERROR_POOL_OVER	5	/* mpool structure was overwritten */
-#define NT_MPOOL_ERROR_PAGE_SIZE	6	/* could not get system page-size */
-#define NT_MPOOL_ERROR_OPEN_ZERO	7	/* could not open /dev/zero */
-#define NT_MPOOL_ERROR_NO_MEM	8	/* no memory available */
-#define NT_MPOOL_ERROR_MMAP	9	/* problems with mmap */
-#define NT_MPOOL_ERROR_SIZE	10	/* error processing requested size */
-#define NT_MPOOL_ERROR_TOO_BIG	11	/* allocation exceeded max size */
-#define NT_MPOOL_ERROR_MEM		12	/* invalid memory address */
-#define NT_MPOOL_ERROR_MEM_OVER	13	/* memory lower bounds overwritten */
-#define NT_MPOOL_ERROR_NOT_FOUND	14	/* memory block not found in pool */
-#define NT_MPOOL_ERROR_IS_FREE	15	/* memory block already free */
-#define NT_MPOOL_ERROR_BLOCK_STAT	16	/* invalid internal block status */
-#define NT_MPOOL_ERROR_FREE_ADDR	17	/* invalid internal free address */
-#define NT_MPOOL_ERROR_SBRK_CONTIG	18	/* sbrk did not return contiguous mem*/
-#define NT_MPOOL_ERROR_NO_PAGES	19	/* ran out of pages in pool */
-#define NT_MPOOL_ERROR_ALLOC	20	/* calloc,malloc,free,realloc failed */
-#define NT_MPOOL_ERROR_PNT_OVER	21	/* pointer structure was overwritten */
+#define NT_MPOOL_ERROR_NONE  1  /* no error */
+#define NT_MPOOL_ERROR_ARG_NULL  2  /* function argument is null */
+#define NT_MPOOL_ERROR_ARG_INVALID  3  /* function argument is invalid */
+#define NT_MPOOL_ERROR_PNT    4  /* invalid mpool pointer */
+#define NT_MPOOL_ERROR_POOL_OVER  5  /* mpool structure was overwritten */
+#define NT_MPOOL_ERROR_PAGE_SIZE  6  /* could not get system page-size */
+#define NT_MPOOL_ERROR_OPEN_ZERO  7  /* could not open /dev/zero */
+#define NT_MPOOL_ERROR_NO_MEM  8  /* no memory available */
+#define NT_MPOOL_ERROR_MMAP  9  /* problems with mmap */
+#define NT_MPOOL_ERROR_SIZE  10  /* error processing requested size */
+#define NT_MPOOL_ERROR_TOO_BIG  11  /* allocation exceeded max size */
+#define NT_MPOOL_ERROR_MEM    12  /* invalid memory address */
+#define NT_MPOOL_ERROR_MEM_OVER  13  /* memory lower bounds overwritten */
+#define NT_MPOOL_ERROR_NOT_FOUND  14  /* memory block not found in pool */
+#define NT_MPOOL_ERROR_IS_FREE  15  /* memory block already free */
+#define NT_MPOOL_ERROR_BLOCK_STAT  16  /* invalid internal block status */
+#define NT_MPOOL_ERROR_FREE_ADDR  17  /* invalid internal free address */
+#define NT_MPOOL_ERROR_SBRK_CONTIG  18  /* sbrk did not return contiguous mem*/
+#define NT_MPOOL_ERROR_NO_PAGES  19  /* ran out of pages in pool */
+#define NT_MPOOL_ERROR_ALLOC  20  /* calloc,malloc,free,realloc failed */
+#define NT_MPOOL_ERROR_PNT_OVER  21  /* pointer structure was overwritten */
 
 /*
  * Mpool function IDs for the nt_mpool_log_func callback function.
  */
-#define NT_MPOOL_FUNC_CLOSE	1	/* nt_mpool_close function called */
-#define NT_MPOOL_FUNC_CLEAR	2	/* nt_mpool_clear function called */
-#define NT_MPOOL_FUNC_ALLOC	3	/* nt_mpool_alloc function called */
-#define NT_MPOOL_FUNC_CALLOC	4	/* nt_mpool_calloc function called */
-#define NT_MPOOL_FUNC_FREE		5	/* nt_mpool_free function called */
-#define NT_MPOOL_FUNC_RESIZE	6	/* nt_mpool_resize function called */
+#define NT_MPOOL_FUNC_CLOSE  1  /* nt_mpool_close function called */
+#define NT_MPOOL_FUNC_DRAIN  2  /* nt_mpool_drain function called */
+#define NT_MPOOL_FUNC_ALLOC  3  /* nt_mpool_alloc function called */
+#define NT_MPOOL_FUNC_CALLOC  4  /* nt_mpool_calloc function called */
+#define NT_MPOOL_FUNC_FREE    5  /* nt_mpool_free function called */
+#define NT_MPOOL_FUNC_RESIZE  6  /* nt_mpool_resize function called */
 
 /*
  * void nt_mpool_log_func_t
@@ -128,19 +128,19 @@
  * old_byte_size -> Optionally specified old byte size.  For
  * nt_mpool_resize only.
  */
-typedef void	(*nt_mpool_log_func_t)(const void *mp_p,
-				    const int func_id,
-				    const unsigned long byte_size,
-				    const unsigned long ele_n,
-				    const void *old_addr, const void *new_addr,
-				    const unsigned long old_byte_size);
+typedef void  (*nt_mpool_log_func_t)(const void *mp_p,
+            const int func_id,
+            const unsigned long byte_size,
+            const unsigned long ele_n,
+            const void *old_addr, const void *new_addr,
+            const unsigned long old_byte_size);
 
 #ifdef NT_MPOOL_MAIN
 #include "mpool_private.h"
 #else
 
 /* generic mpool type */
-typedef	void	nt_mpool_t;
+typedef  void  nt_mpool_t;
 
 #endif
 
@@ -175,8 +175,8 @@ typedef	void	nt_mpool_t;
  * a mpool error code.
  */
 extern
-nt_mpool_t	*nt_mpool_open(const unsigned int flags, const unsigned int page_size,
-		    void *start_addr, int *error_p);
+nt_mpool_t  *nt_mpool_open(const unsigned int flags, const unsigned int page_size,
+        void *start_addr, int *error_p);
 
 /*
  * int nt_mpool_close
@@ -197,10 +197,10 @@ nt_mpool_t	*nt_mpool_open(const unsigned int flags, const unsigned int page_size
  * mp_p <-> Pointer to our memory pool.
  */
 extern
-int	nt_mpool_close(nt_mpool_t *mp_p);
+int  nt_mpool_close(nt_mpool_t *mp_p);
 
 /*
- * int nt_mpool_clear
+ * int nt_mpool_drain
  *
  * DESCRIPTION:
  *
@@ -217,7 +217,7 @@ int	nt_mpool_close(nt_mpool_t *mp_p);
  * mp_p <-> Pointer to our memory pool.
  */
 extern
-int	nt_mpool_clear(nt_mpool_t *mp_p);
+int  nt_mpool_drain(nt_mpool_t *mp_p);
 
 /*
  * void *nt_mpool_alloc
@@ -243,8 +243,8 @@ int	nt_mpool_clear(nt_mpool_t *mp_p);
  * a mpool error code.
  */
 extern
-void	*nt_mpool_alloc(nt_mpool_t *mp_p, const unsigned long byte_size,
-		     int *error_p);
+void  *nt_mpool_alloc(nt_mpool_t *mp_p, const unsigned long byte_size,
+         int *error_p);
 
 /*
  * void *nt_mpool_calloc
@@ -273,8 +273,8 @@ void	*nt_mpool_alloc(nt_mpool_t *mp_p, const unsigned long byte_size,
  * a mpool error code.
  */
 extern
-void	*nt_mpool_calloc(nt_mpool_t *mp_p, const unsigned long ele_n,
-		      const unsigned long ele_size, int *error_p);
+void  *nt_mpool_calloc(nt_mpool_t *mp_p, const unsigned long ele_n,
+          const unsigned long ele_size, int *error_p);
 
 /*
  * int nt_mpool_free
@@ -299,7 +299,7 @@ void	*nt_mpool_calloc(nt_mpool_t *mp_p, const unsigned long ele_n,
  * size -> Size of the address being freed.
  */
 extern
-int	nt_mpool_free(nt_mpool_t *mp_p, void *addr, const unsigned long size);
+int  nt_mpool_free(nt_mpool_t *mp_p, void *addr, const unsigned long size);
 
 /*
  * void *nt_mpool_resize
@@ -333,10 +333,10 @@ int	nt_mpool_free(nt_mpool_t *mp_p, void *addr, const unsigned long size);
  * a mpool error code.
  */
 extern
-void	*nt_mpool_resize(nt_mpool_t *mp_p, void *old_addr,
-		      const unsigned long old_byte_size,
-		      const unsigned long new_byte_size,
-		      int *error_p);
+void  *nt_mpool_resize(nt_mpool_t *mp_p, void *old_addr,
+          const unsigned long old_byte_size,
+          const unsigned long new_byte_size,
+          int *error_p);
 
 /*
  * int nt_mpool_stats
@@ -373,11 +373,12 @@ void	*nt_mpool_resize(nt_mpool_t *mp_p, void *old_addr,
  * overhead) used by the pool.
  */
 extern
-int	nt_mpool_stats(const nt_mpool_t *mp_p, unsigned int *page_size_p,
-		    unsigned long *num_alloced_p,
-		    unsigned long *user_alloced_p,
-		    unsigned long *max_alloced_p,
-		    unsigned long *tot_alloced_p);
+int  nt_mpool_stats(const nt_mpool_t *mp_p, unsigned int *page_size_p,
+        unsigned long *num_alloced_p,
+        unsigned long *user_alloced_p,
+        unsigned long *max_alloced_p,
+        unsigned long *tot_alloced_p);
+
 
 /*
  * int nt_mpool_set_log_func
@@ -401,7 +402,7 @@ int	nt_mpool_stats(const nt_mpool_t *mp_p, unsigned int *page_size_p,
  * with each mpool transaction.
  */
 extern
-int	nt_mpool_set_log_func(nt_mpool_t *mp_p, nt_mpool_log_func_t log_func);
+int nt_mpool_set_log_func(nt_mpool_t *mp_p, nt_mpool_log_func_t log_func);
 
 /*
  * int nt_mpool_set_max_pages
@@ -429,7 +430,7 @@ int	nt_mpool_set_log_func(nt_mpool_t *mp_p, nt_mpool_log_func_t log_func);
  * max_pages -> Maximum number of pages used by the library.
  */
 extern
-int	nt_mpool_set_max_pages(nt_mpool_t *mp_p, const unsigned int max_pages);
+int  nt_mpool_set_max_pages(nt_mpool_t *mp_p, const unsigned int max_pages);
 
 /*
  * const char *nt_mpool_strerror
@@ -449,7 +450,7 @@ int	nt_mpool_set_max_pages(nt_mpool_t *mp_p, const unsigned int max_pages);
  * error -> Error number that we are converting.
  */
 extern
-const char	*nt_mpool_strerror(const int error);
+const char  *nt_mpool_strerror(const int error);
 
 /*<<<<<<<<<<   This is end of the auto-generated output from fillproto. */
 

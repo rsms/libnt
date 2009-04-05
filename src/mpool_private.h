@@ -91,7 +91,9 @@ typedef struct {
   unsigned int		mp_page_size;	/* page-size of our system */
   int			mp_fd;		/* fd for /dev/zero if mmap-ing */
   off_t			mp_top;		/* top of our allocations in fd */ 
+#ifdef NT_POOL_ENABLE_LOGGING
   nt_mpool_log_func_t	mp_log_func;	/* log callback function */
+#endif
   void			*mp_addr;	/* current address for mmaping */
   void			*mp_min_p;	/* min address in pool for checks */
   void			*mp_bounds_p;	/* max address in pool for checks */

@@ -272,7 +272,7 @@ static	void	do_random(nt_mpool_t *pool, const int iter_n)
 		       (long)pnt_p->pi_pnt);
 	}
 	
-	/* test the returned block to make sure that is has been cleared */
+	/* test the returned block to make sure that is has been drained */
 	if (pnt_p->pi_pnt == NULL) {
 	  (void)printf("calloc of %ld failed: %s\n",
 		       amount,
@@ -473,7 +473,7 @@ static	void	do_interactive(nt_mpool_t *pool)
       (void)printf("\tresize    - resize memory\n");
       (void)printf("\tfree      - deallocate memory\n\n");
       
-      (void)printf("\tclear     - clear the pool\n");
+      (void)printf("\tdrain     - drain the pool\n");
       (void)printf("\toverwrite - overwrite some memory to test errors\n");
       (void)printf("\trandom    - randomly execute a number of [de] allocs\n");
       
@@ -566,13 +566,13 @@ static	void	do_interactive(nt_mpool_t *pool)
       continue;
     }
     
-    if (strncmp(line, "clear", len) == 0) {
-      ret = nt_mpool_clear(pool);
+    if (strncmp(line, "drain", len) == 0) {
+      ret = nt_mpool_drain(pool);
       if (ret == NT_MPOOL_ERROR_NONE) {
-	(void)fprintf(stderr, "clear succeeded\n");
+	(void)fprintf(stderr, "drain succeeded\n");
       }
       else {
-	(void)fprintf(stderr, "clear failed: %s\n", nt_mpool_strerror(ret));
+	(void)fprintf(stderr, "drain failed: %s\n", nt_mpool_strerror(ret));
       }
       continue;
     }
@@ -655,8 +655,8 @@ static	void	log_func(const void *mp_p, const int func_id,
     (void)printf("close\n");
     break;
     
-  case NT_MPOOL_FUNC_CLEAR:
-    (void)printf("clear\n");
+  case NT_MPOOL_FUNC_DRAIN:
+    (void)printf("drain\n");
     break;
     
   case NT_MPOOL_FUNC_ALLOC:

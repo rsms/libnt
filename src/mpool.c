@@ -24,6 +24,10 @@
   Rewritten by Rasmus Andersson for use in libnt.
   Added thread-safety using "lock-free" spinlocks and added support for ANON
   mmaps (instead of open(/dev/zero)) and alot of minor tweaks and fixes.
+  
+  If you are compiling with __SMP__ defined, this implementation will not use
+  barriers/spinlocks in order to be thread safe. This gives a small performance
+  increase at the cost of thread-safety.
 */
 
 /*
@@ -927,7 +931,9 @@ nt_mpool_t	*nt_mpool_open(const unsigned int flags, const unsigned int page_size
   /* mp.mp_fd set below */
   /* mp.mp_top set below */
   /* mp.mp_addr set below */
+#ifdef NT_POOL_ENABLE_LOGGING
   mp.mp_log_func = NULL;
+#endif
   mp.mp_min_p = NULL;
   mp.mp_bounds_p = NULL;
   mp.mp_first_p = NULL;
@@ -1091,9 +1097,12 @@ int	nt_mpool_close(nt_mpool_t *mp_p)
     return NT_MPOOL_ERROR_NONE;
   }
   
+#ifdef NT_POOL_ENABLE_LOGGING
   if (mp_p->mp_log_func != NULL) {
     mp_p->mp_log_func(mp_p, NT_MPOOL_FUNC_CLOSE, 0, 0, NULL, NULL, 0);
   }
+#endif
+  
   
   /*
    * NOTE: if we are HEAVY_PACKING then the 1st block with the mpool
@@ -1151,7 +1160,7 @@ int	nt_mpool_close(nt_mpool_t *mp_p)
 }
 
 /*
- * int nt_mpool_clear
+ * int nt_mpool_drain
  *
  * DESCRIPTION:
  *
@@ -1167,7 +1176,7 @@ int	nt_mpool_close(nt_mpool_t *mp_p)
  *
  * mp_p <-> Pointer to our memory pool.
  */
-int	nt_mpool_clear(nt_mpool_t *mp_p)
+int	nt_mpool_drain(nt_mpool_t *mp_p)
 {
   nt_mpool_block_t	*block_p;
   int		final = NT_MPOOL_ERROR_NONE, bit_n, ret;
@@ -1186,9 +1195,11 @@ int	nt_mpool_clear(nt_mpool_t *mp_p)
   
   LOCK_POOL(mp_p);
   
+#ifdef NT_POOL_ENABLE_LOGGING
   if (mp_p->mp_log_func != NULL) {
-    mp_p->mp_log_func(mp_p, NT_MPOOL_FUNC_CLEAR, 0, 0, NULL, NULL, 0);
+    mp_p->mp_log_func(mp_p, NT_MPOOL_FUNC_DRAIN, 0, 0, NULL, NULL, 0);
   }
+#endif
   
   /* reset all of our free lists */
   for (bit_n = 0; bit_n <= MAX_BITS; bit_n++) {
@@ -1277,9 +1288,11 @@ void	*nt_mpool_alloc(nt_mpool_t *mp_p, const unsigned long byte_size,
   addr = alloc_mem(mp_p, byte_size, error_p);
   UNLOCK_POOL(mp_p);
   
+#ifdef NT_POOL_ENABLE_LOGGING
   if (mp_p->mp_log_func != NULL) {
     mp_p->mp_log_func(mp_p, NT_MPOOL_FUNC_ALLOC, byte_size, 0, addr, NULL, 0);
   }
+#endif
   
   return addr;
 }
@@ -1353,9 +1366,11 @@ void	*nt_mpool_calloc(nt_mpool_t *mp_p, const unsigned long ele_n,
     memset(addr, 0, byte_size);
   }
   
+#ifdef NT_POOL_ENABLE_LOGGING
   if (mp_p->mp_log_func != NULL) {
     mp_p->mp_log_func(mp_p, NT_MPOOL_FUNC_CALLOC, ele_size, ele_n, addr, NULL, 0);
   }
+#endif
   
   /* NOTE: error_p set above */
   return addr;
@@ -1399,9 +1414,11 @@ int	nt_mpool_free(nt_mpool_t *mp_p, void *addr, const unsigned long size)
     return NT_MPOOL_ERROR_POOL_OVER;
   }
   
+#ifdef NT_POOL_ENABLE_LOGGING
   if (mp_p->mp_log_func != NULL) {
     mp_p->mp_log_func(mp_p, NT_MPOOL_FUNC_FREE, size, 0, NULL, addr, 0);
   }
+#endif
   
   if (addr == NULL) {
     return NT_MPOOL_ERROR_ARG_NULL;
@@ -1571,10 +1588,12 @@ void	*nt_mpool_resize(nt_mpool_t *mp_p, void *old_addr,
   }
   UNLOCK_POOL(mp_p);
   
+#ifdef NT_POOL_ENABLE_LOGGING
   if (mp_p->mp_log_func != NULL) {
     mp_p->mp_log_func(mp_p, NT_MPOOL_FUNC_RESIZE, new_byte_size,
 		      0, new_addr, old_addr, old_byte_size);
   }
+#endif
   
   SET_POINTER(error_p, NT_MPOOL_ERROR_NONE);
   return new_addr;
@@ -1641,6 +1660,7 @@ int	nt_mpool_stats(const nt_mpool_t *mp_p, unsigned int *page_size_p,
   return NT_MPOOL_ERROR_NONE;
 }
 
+
 /*
  * int nt_mpool_set_log_func
  *
@@ -1664,6 +1684,7 @@ int	nt_mpool_stats(const nt_mpool_t *mp_p, unsigned int *page_size_p,
  */
 int	nt_mpool_set_log_func(nt_mpool_t *mp_p, nt_mpool_log_func_t log_func)
 {
+#ifdef NT_POOL_ENABLE_LOGGING
   if (mp_p == NULL) {
     return NT_MPOOL_ERROR_ARG_NULL;
   }
@@ -1677,7 +1698,7 @@ int	nt_mpool_set_log_func(nt_mpool_t *mp_p, nt_mpool_log_func_t log_func)
   LOCK_POOL(mp_p);
   mp_p->mp_log_func = log_func;
   UNLOCK_POOL(mp_p);
-  
+#endif /* NT_POOL_ENABLE_LOGGING */
   return NT_MPOOL_ERROR_NONE;
 }
 
