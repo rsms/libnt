@@ -52,6 +52,7 @@ static void on_accept(int fd, short ev, nt_event_base_server *bs) {
 
 
 #include <string.h>
+#include <assert.h>
 #include <libkern/OSAtomic.h>
 int testq() {
   typedef struct elem {
@@ -70,6 +71,9 @@ int testq() {
   OSAtomicEnqueue( &q, &mary, offsetof(elem_t,link) );
 
   p = OSAtomicDequeue( &q, offsetof(elem_t,link) );
+  assert(p == &mary);
+  p = OSAtomicDequeue( &q, offsetof(elem_t,link) );
+  assert(p == &fred);
   
   // -------------
   
@@ -79,6 +83,9 @@ int testq() {
   nt_atomic_enqueue(&q2, &mary, offsetof(elem_t,link));
   
   p = nt_atomic_dequeue( &q2, offsetof(elem_t,link) );
+  assert(p == &mary);
+  p = nt_atomic_dequeue( &q2, offsetof(elem_t,link) );
+  assert(p == &fred);
   
   return 1;
 }
