@@ -37,7 +37,7 @@ _nt_atomic_dequeue32_up:                // void * nt_atomic_dequeue(nt_atomic_qu
   .align          2
   .globl          _nt_atomic_dequeue_ifnexteq32_mp
   .private_extern _nt_atomic_dequeue_ifnexteq32_mp
-_nt_atomic_dequeue_ifnexteq32_mp:          // void * nt_atomic_dequeueOnlyIf(nt_atomic_queue *queue, size_t offset, void *cmpptr);
+_nt_atomic_dequeue_ifnexteq32_mp:          // void * nt_atomic_dequeue_ifnexteq(nt_atomic_queue *queue, size_t offset, void *cmpptr);
   mr      r6,r3
 1:
   lwsync                          // write barrier
@@ -58,7 +58,7 @@ _nt_atomic_dequeue_ifnexteq32_mp:          // void * nt_atomic_dequeueOnlyIf(nt_
   .align          2
   .globl          _nt_atomic_dequeue_ifnexteq32_up
   .private_extern _nt_atomic_dequeue_ifnexteq32_up
-_nt_atomic_dequeue_ifnexteq32_up:          // void * nt_atomic_dequeueOnlyIf(nt_atomic_queue *queue, size_t offset, void *cmpptr);
+_nt_atomic_dequeue_ifnexteq32_up:          // void * nt_atomic_dequeue_ifnexteq(nt_atomic_queue *queue, size_t offset, void *cmpptr);
   mr      r6,r3
 1:
   lwarx   r3,0,r6                 // get 1st item in queue
@@ -370,7 +370,7 @@ _nt_atomic_dequeue32_mp:                // void * nt_atomic_dequeue(nt_atomic_qu
 _nt_atomic_dequeue_ifnexteq32_up:
   .globl          _nt_atomic_dequeue_ifnexteq32_mp
   .private_extern _nt_atomic_dequeue_ifnexteq32_mp
-_nt_atomic_dequeue_ifnexteq32_mp:          // void * nt_atomic_dequeueOnlyIf(nt_atomic_queue *queue, size_t offset, void *cmpptr);
+_nt_atomic_dequeue_ifnexteq32_mp:          // void * nt_atomic_dequeue_ifnexteq(nt_atomic_queue *queue, size_t offset, void *cmpptr);
   pushl   %edi
   pushl   %esi
   pushl   %ebx
@@ -464,7 +464,7 @@ _nt_atomic_dequeue64_mp:                // %rdi == queue head, %rsi == offset
 _nt_atomic_dequeue_ifnexteq64_up:
   .globl          _nt_atomic_dequeue_ifnexteq64_mp
   .private_extern _nt_atomic_dequeue_ifnexteq64_mp
-                                  // void * nt_atomic_dequeueOnlyIf(nt_atomic_queue *queue, size_t offset, void *cmpptr);
+                                  // void * nt_atomic_dequeue_ifnexteq(nt_atomic_queue *queue, size_t offset, void *cmpptr);
 _nt_atomic_dequeue_ifnexteq64_mp:          // %rdi == nt_atomic_queue *, %rsi == offset, %rdx == cmpptr
   pushq   %rbx
   movq    %rdx,%r8                // %r8 == cmpptr
