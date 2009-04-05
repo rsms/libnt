@@ -2,8 +2,7 @@
  * Memory pool test program.
  *
  * Copyright 1996 by Gray Watson.
- *
- * This file is part of the mpool package.
+ * Copyright 2009 Rasmus Andersson.
  *
  * Permission to use, copy, modify, and distribute this software for
  * any purpose and without fee is hereby granted, provided that the
