@@ -1,5 +1,5 @@
 /**
-  Lock-free, thread-safe FIFO-queue.
+  Operations on lock-free and thread-safe singly linked LIFO queues.
   
   Modelled after the Darwin/XNU OSAtomic queue.
   
