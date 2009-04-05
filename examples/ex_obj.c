@@ -1,9 +1,13 @@
+/**
+ This code is released in the Public Domain (no restrictions, no support
+ 100% free) by Notion.
+*/
+#include "../src/obj.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <assert.h>
-#include "src/obj.h"
 
 typedef struct myobj {
   NT_OBJ_HEAD

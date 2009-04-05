@@ -1,3 +1,7 @@
+/**
+ This code is released in the Public Domain (no restrictions, no support
+ 100% free) by Notion.
+*/
 #include "../src/event_base.h"
 #include "../src/tcp_server.h"
 #include "../src/tcp_client.h"

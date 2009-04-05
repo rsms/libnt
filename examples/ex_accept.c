@@ -1,5 +1,9 @@
-#include "ntn/tcp_server.h"
-#include "ntn/util.h"
+/**
+ This code is released in the Public Domain (no restrictions, no support
+ 100% free) by Notion.
+*/
+#include "../src/tcp_server.h"
+#include "../src/util.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>

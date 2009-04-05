@@ -1,3 +1,7 @@
+/**
+ This code is released in the Public Domain (no restrictions, no support
+ 100% free) by Notion.
+*/
 #include "../src/atomic_queue.h"
 #include <stddef.h>
 #include <string.h>
