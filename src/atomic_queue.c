@@ -1,6 +1,4 @@
 /**
-  Lock-free, thread-safe queue implementation.
-  
   Copyright (c) 2009 Notion <http://notion.se/>
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
