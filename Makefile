@@ -1,28 +1,33 @@
 .PHONY: all lib examples tests
 
-S_SRC=src/atomic_queue_asmimpl.s
-C_SRC=src/util.c src/machine.c \
-      src/mpool.c \
-      src/atomic_queue.c \
-      src/event_base.c \
-      src/tcp_socket.c src/tcp_server.c src/tcp_client.c
+LIB_S_SRCS =  src/atomic_queue_asmimpl.s
+LIB_C_SRCS =  src/util.c src/machine.c \
+              src/mpool.c \
+              src/atomic_queue.c \
+              src/event_base.c \
+              src/tcp_socket.c src/tcp_server.c src/tcp_client.c
+LIB_S_OBJS = ${LIB_S_SRCS:.s=.o}
+LIB_C_OBJS = ${LIB_C_SRCS:.c=.o}
+LIB_OBJS=${LIB_S_OBJS} ${LIB_C_OBJS}
 
-S_OBJ = ${S_SRC:.s=.o}
-C_OBJ = ${C_SRC:.c=.o}
-
-OBJECTS=${S_OBJ} ${C_OBJ}
-#SOURCES=${S_SRC} ${C_SRC}
 TESTS = mpool atomic_queue
-TESTS_SRC = $(foreach n,$(TESTS),tests/$(n).c)
-TESTS_OBJ = ${TESTS_SRC:.c=.o}
+TEST_SRCS = $(foreach n,$(TESTS),tests/$(n).c)
+TEST_OBJS = ${TEST_SRCS:.c=.o}
+
+EXAMPLES = object echo_server
+EXAMPLE_SRCS = $(foreach n,$(EXAMPLES),examples/$(n).c)
+EXAMPLE_OBJS = $(foreach n,$(EXAMPLES),examples/$(n).o)
+#EXAMPLE_OBJS = ${EXAMPLES_SRCS:.c=.o}
 
 INCDIR = -I/opt/local/include
 LIBSDIR = -L/opt/local/lib
 
 CC=gcc
-CFLAGS+=-Wall -include src/_prefix.h
-CFLAGS+=-std=c99
-CFLAGS+=-DDEBUG=1
+SFLAGS=
+CFLAGS += -Wall -include src/_prefix.h
+CFLAGS += -std=c99
+CFLAGS += -DDEBUG=1
+#CFLAGS += -DNT_LOG_TRACE=1
 CFLAGS += -I/opt/local/include
 TOOL_CFLAGS = -Lbuild/libs -lnt -levent
 
@@ -30,39 +35,39 @@ LD=/usr/bin/libtool
 LIBS += -levent -lSystem
 #LIBS += -lgcc_s.1
 LD_DYLIB_FLAGS = 
-DIRS = build build/libs build/examples build/tests
+DIRS = build build/libs build/tests build/examples
 
 all: lib tests
 
 lib: ${DIRS} build/libs/libnt.a build/libs/libnt.dylib
 
-examples: ex_echo
-
 tests: ${TESTS}
 
-ex_echo: lib build/libs/libnt.dylib examples/ex_echo.c
-	$(CC) $(CFLAGS) $(TOOL_CFLAGS) $(LIBSDIR) examples/ex_echo.c -o build/example_echo
+examples: ${EXAMPLES}
 
-$(TESTS): lib ${TESTS_OBJ}
+${TESTS}: lib ${TEST_OBJS}
 	@echo running test ./build/tests/$@
-	@rm -f build/tests/$@
 	@$(CC) $(LDFLAGS) -Lbuild/libs -lnt tests/$@.o -o build/tests/$@
 	@./build/tests/$@ > /dev/null
+
+${EXAMPLES}: lib ${EXAMPLE_OBJS}
+	@echo ${EXAMPLE_OBJS}
+	$(CC) $(CFLAGS) $(LDFLAGS) $(LIBSDIR) -Lbuild/libs -lnt -levent examples/$@.o -o build/examples/$@
 
 ${DIRS}:
 	@mkdir $@
 
 .s.o:
-	$(CC) -c $(CFLAGS) $< -o $@
+	$(CC) -c $(SFLAGS) $< -o $@
 
 .c.o:
 	$(CC) -c $(CFLAGS) $< -o $@
 
-build/libs/libnt.a: ${OBJECTS}
-	$(LD) -static -o build/libs/libnt.a $(LDFLAGS) ${OBJECTS}
+build/libs/libnt.a: ${LIB_OBJS}
+	$(LD) -static -o build/libs/libnt.a $(LDFLAGS) ${LIB_OBJS}
 
-build/libs/libnt.dylib: ${OBJECTS}
-	$(LD) -dynamic -o build/libs/libnt.dylib $(LDFLAGS) $(LIBSDIR) $(LD_DYLIB_FLAGS) $(LIBS) ${OBJECTS}
+build/libs/libnt.dylib: ${LIB_OBJS}
+	$(LD) -dynamic -o build/libs/libnt.dylib $(LDFLAGS) $(LIBSDIR) $(LD_DYLIB_FLAGS) $(LIBS) ${LIB_OBJS}
 
 clean:
 	rm -rf ${DIRS} src/*.o tests/*.o

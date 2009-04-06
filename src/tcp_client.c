@@ -25,6 +25,7 @@
 
 
 static void _dealloc(nt_tcp_client *self) {
+  log_trace("");
   // free the bufferevent
   bufferevent_free(self->bev);
   
@@ -37,6 +38,7 @@ static void _dealloc(nt_tcp_client *self) {
 
 
 nt_tcp_client *nt_tcp_client_new(nt_tcp_socket *socket) {
+  log_trace("");
   nt_tcp_client *self;
   
   if ( !(self = (nt_tcp_client *)malloc(sizeof(nt_tcp_client))) )
@@ -48,22 +50,19 @@ nt_tcp_client *nt_tcp_client_new(nt_tcp_socket *socket) {
   nt_xretain(socket);
   self->socket = socket;
   
+  self->bev = NULL;
+  self->bs = NULL;
+  
   return self;
 }
 
 
-static void _bev_on_read(struct bufferevent *bev, nt_tcp_client *client) {
-  evbuffer_drain(bev->input, bev->input->off);
-}
-
-static void _bev_on_write(struct bufferevent *bev, nt_tcp_client *client) {
-}
-
 static void _bev_on_error(struct bufferevent *bev, short what, nt_tcp_client *client) {
+  log_trace("");
   if (!(what & EVBUFFER_EOF)) {
     warn("client socket error -- disconnecting client\n");
   }
-  nt_release(client);
+  nt_xrelease(client);
 }
 
 
@@ -73,9 +72,10 @@ nt_tcp_client *nt_tcp_client_accept(nt_event_base_server *bs,
                                     nt_tcp_client_on_write *on_write,
                                     nt_tcp_client_on_error *on_error)
 {
+  log_trace("");
   nt_tcp_socket *sock;
   nt_tcp_client *client;
-  int af;
+  int af, evflags;
   
   af = (bs->server->socket6 && bs->server->socket6->fd == server_fd) ? AF_INET6 : AF_INET;
   
@@ -99,10 +99,23 @@ nt_tcp_client *nt_tcp_client_accept(nt_event_base_server *bs,
   // Set pointer to base-server tuple
   client->bs = bs;
   
-  // Make sure the callbacks are valid
-  if (on_read == NULL) on_read = &_bev_on_read;
-  if (on_write == NULL) on_write = &_bev_on_write;
-  if (on_error == NULL) on_error = &_bev_on_error;
+  // Set evflags
+  evflags = 0;
+  if (on_read)
+    evflags |= EV_READ;
+  if (on_write)
+    evflags |= EV_WRITE;
+  
+  // Make sure the error callback is set
+  if (on_error == NULL)
+    on_error = &_bev_on_error;
+  
+  // Check so that we handle at least one event
+  if (evflags == 0) {
+    warnx("nt_tcp_client_accept: neither read nor write callbacks was specified");
+    nt_release(client);
+    return NULL;
+  }
   
   // Create a new bufferevent
   client->bev = bufferevent_new(sock->fd,
@@ -121,6 +134,13 @@ nt_tcp_client *nt_tcp_client_accept(nt_event_base_server *bs,
       nt_release(client);
       return NULL;
     }
+  }
+  
+  // Enable events
+  if (bufferevent_enable(client->bev, evflags) != 0) {
+    warnx("nt_tcp_client_accept: bufferevent_enable() failed");
+    nt_release(client);
+    return NULL;
   }
   
   return client;
