@@ -14,8 +14,8 @@ typedef struct myobj {
   int myint;
 } myobj;
 
-void myobj_destructor(nt_obj *obj) {
-  printf("myobj_destructor called with obj @ %p\n", obj);
+void myobj_deallocator(nt_obj *obj) {
+  printf("myobj_deallocator called with obj @ %p\n", obj);
   //free(obj);
 }
 
@@ -24,7 +24,7 @@ int main (int argc, char const *argv[]) {
   obj = malloc(sizeof(myobj));
   
   // initialize an object
-  nt_obj_init((nt_obj *)obj, &myobj_destructor); // new reference
+  nt_obj_init((nt_obj *)obj, &myobj_deallocator); // new reference
   assert(nt_obj_get_refcount((nt_obj *)obj) == 1);
   
   // get an extra reference
@@ -46,7 +46,7 @@ int main (int argc, char const *argv[]) {
   assert(nt_obj_get_refcount((nt_obj *)obj) == 1);
   
   // release the reference retained by nt_obj_init
-  nt_putref(obj); // put back one reference -- should call the destructor
+  nt_putref(obj); // put back one reference -- should call the deallocator
   
   // note:
   // it is a fault to access obj beyond this point, as there are no longer any
