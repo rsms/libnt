@@ -55,46 +55,6 @@ static void on_accept(int fd, short ev, nt_event_base_server *bs) {
 }
 
 
-#include <string.h>
-#include <assert.h>
-#include <libkern/OSAtomic.h>
-int testq() {
-  typedef struct elem {
-    long    data1;
-    struct elem *link;
-    int     data2;
-  } elem_t;
-
-  elem_t fred, mary, *p;
-  
-  // -------------
-
-  OSQueueHead q = OS_ATOMIC_QUEUE_INIT;
-
-  OSAtomicEnqueue( &q, &fred, offsetof(elem_t,link) );
-  OSAtomicEnqueue( &q, &mary, offsetof(elem_t,link) );
-
-  p = OSAtomicDequeue( &q, offsetof(elem_t,link) );
-  assert(p == &mary);
-  p = OSAtomicDequeue( &q, offsetof(elem_t,link) );
-  assert(p == &fred);
-  
-  // -------------
-  
-  nt_atomic_queue q2 = NT_ATOMIC_QUEUE_INIT;
-  
-  nt_atomic_enqueue(&q2, &fred, offsetof(elem_t,link));
-  nt_atomic_enqueue(&q2, &mary, offsetof(elem_t,link));
-  
-  p = nt_atomic_dequeue( &q2, offsetof(elem_t,link) );
-  assert(p == &mary);
-  p = nt_atomic_dequeue( &q2, offsetof(elem_t,link) );
-  assert(p == &fred);
-  
-  return 1;
-}
-
-
 int main(int argc, char * const *argv) {
   nt_tcp_server *server;
   nt_event_base *base;
@@ -103,9 +63,6 @@ int main(int argc, char * const *argv) {
   bool ipv6_enabled = true;
   bool ipv6_only = false;
   bool blocking = false;
-  
-  if(testq())
-    return 0;
   
   // parse arguments
   if (argc > 1)
