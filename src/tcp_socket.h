@@ -32,8 +32,8 @@
 
 typedef struct nt_tcp_socket {
   NT_OBJ_HEAD
-  struct sockaddr *addr;
   int fd;
+  struct sockaddr_storage addr;
 } nt_tcp_socket;
 
 nt_tcp_socket *nt_tcp_socket_new(int fd);
@@ -54,8 +54,8 @@ bool nt_tcp_socket_bind(nt_tcp_socket *self, struct addrinfo *ai, bool ipv6_only
 // Listen
 bool nt_tcp_socket_listen(nt_tcp_socket *self, int backlog);
 
-// Accept a connection. Returns a new reference.
-nt_tcp_socket *nt_tcp_socket_accept(int server_fd, int af);
+// Accept a connection from @server_fd
+bool nt_tcp_socket_accept(nt_tcp_socket *self, int server_fd);
 
 // Close
 bool nt_tcp_socket_close(nt_tcp_socket *self);

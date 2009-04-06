@@ -71,13 +71,19 @@ nt_tcp_client *nt_tcp_client_accept(nt_event_base_server *bs,
 {
   nt_tcp_socket *sock;
   nt_tcp_client *client;
-  int af, evflags;
+  int evflags;
   
-  af = (bs->server->socket6 && bs->server->socket6->fd == server_fd) ? AF_INET6 : AF_INET;
+  //af = (bs->server->socket6 && bs->server->socket6->fd == server_fd) ? AF_INET6 : AF_INET;
+  
+  // Create socket
+  if ( (sock = nt_tcp_socket_new(-1)) == NULL )
+    return NULL;
   
   // Accept connection
-  if ( (sock = nt_tcp_socket_accept(server_fd, af)) == NULL )
+  if (!nt_tcp_socket_accept(sock, server_fd)) {
+    nt_release(sock);
     return NULL;
+  }
   
   // Set non-blocking
   if (nt_util_fd_setnonblock(sock->fd) == -1)

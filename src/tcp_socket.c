@@ -30,8 +30,6 @@
 
 static void _dealloc(nt_tcp_socket *self) {
   nt_tcp_socket_close(self);
-  if (self->addr)
-    free(self->addr);
   nt_free(self, sizeof(nt_tcp_socket));
 }
 
@@ -44,8 +42,8 @@ nt_tcp_socket *nt_tcp_socket_new(int fd) {
   
   nt_obj_init((nt_obj *)self, (nt_obj_destructor *)_dealloc);
   
-  self->addr = NULL;
   self->fd = fd;
+  memset(&self->addr, 0, sizeof(struct sockaddr_storage));
   
   return self;
 }
@@ -62,12 +60,12 @@ const char *nt_tcp_socket_host(nt_tcp_socket *socket) {
 
 
 char *nt_tcp_socket_hostcpy(nt_tcp_socket *socket, char *buf, size_t bufsize) {
-  return nt_util_sockaddr_hostcpy(socket->addr, buf, bufsize);
+  return nt_util_sockaddr_hostcpy((struct sockaddr *)&socket->addr, buf, bufsize);
 }
 
 
 uint16_t nt_tcp_socket_port(nt_tcp_socket *socket) {
-  return nt_util_sockaddr_port(socket->addr);
+  return nt_util_sockaddr_port((struct sockaddr *)&socket->addr);
 }
 
 
@@ -111,8 +109,10 @@ bool nt_tcp_socket_bind(nt_tcp_socket *self, struct addrinfo *ptr, bool ipv6_onl
     return false;
   }
   
-  self->addr = ptr->ai_addr;
-  ptr->ai_addr = NULL;
+  if (ptr->ai_family == AF_INET6)
+    memcpy((void * restrict)&self->addr, (const void * restrict)ptr->ai_addr, sizeof(struct sockaddr_in6));
+  else
+    memcpy((void * restrict)&self->addr, (const void * restrict)ptr->ai_addr, sizeof(struct sockaddr_in));
   
   return true;
 }
@@ -127,34 +127,18 @@ bool nt_tcp_socket_listen(nt_tcp_socket *self, int backlog) {
 }
 
 
-nt_tcp_socket *nt_tcp_socket_accept(int server_fd, int af) {
-  int client_fd;
-  struct sockaddr *client_addr;
+bool nt_tcp_socket_accept(nt_tcp_socket *self, int server_fd) {
   socklen_t sockaddr_len;
-  nt_tcp_socket *sock;
   
-  if (af == AF_INET6)
-    sockaddr_len = sizeof(struct sockaddr_in6);
-  else
-    sockaddr_len = sizeof(struct sockaddr_in);
+  sockaddr_len = sizeof(struct sockaddr_storage);
+  self->fd = accept(server_fd, (struct sockaddr *)&self->addr, &sockaddr_len);
   
-  if ( (client_addr = (struct sockaddr *)calloc(1, sockaddr_len)) == NULL )
-    return NULL;
-  
-  client_fd = accept(server_fd, client_addr, &sockaddr_len);
-  if (client_fd == -1) {
+  if (self->fd == -1) {
     perror("accept() in nt_tcp_socket_accept()");
-    free(client_addr);
-    return NULL;
+    return false;
   }
   
-  if ( (sock = nt_tcp_socket_new(client_fd)) == NULL ) {
-    free(client_addr);
-    return NULL;
-  }
-  sock->addr = client_addr;
-  
-  return sock;
+  return true;
 }
 
 
