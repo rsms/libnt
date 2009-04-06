@@ -25,7 +25,6 @@
 #include "atomic.h"
 
 static void _dealloc(nt_event_base *self) {
-  log_trace("");
   if (self->ev_base)
     event_base_free(self->ev_base);
   free(self);
@@ -38,7 +37,6 @@ extern struct event_base *current_base;
 nt_event_base *nt_shared_event_base = NULL;
 
 nt_event_base *nt_event_base_default() {
-  log_trace("");
   if (!nt_shared_event_base) {
     nt_shared_event_base = nt_event_base_new();
     event_base_free(nt_shared_event_base->ev_base);
@@ -52,7 +50,6 @@ nt_event_base *nt_event_base_default() {
 
 
 nt_event_base *nt_event_base_new() {
-  log_trace("");
   nt_event_base *self;
   if ((self = (nt_event_base *)malloc(sizeof(nt_event_base))) == NULL)
     return NULL;
@@ -70,7 +67,6 @@ bool nt_event_base_add_socket(nt_event_base *self,
                               void (*cb)(int, short, void *),
                               void *cbarg)
 {
-  log_trace("");
   event_set(ev, sock->fd, flags, cb, cbarg);
   
   if (event_base_set(self->ev_base, ev) != 0) {
@@ -93,7 +89,6 @@ static inline struct event *_mk_add_accept_ev(nt_event_base_server *bs,
                                               nt_tcp_socket *sock,
                                               const struct timeval *timeout )
 {
-  log_trace("");
   struct event *ev;
   bool success;
   
@@ -117,7 +112,6 @@ static inline struct event *_mk_add_accept_ev(nt_event_base_server *bs,
 
 bool nt_event_base_add_server(nt_event_base *base, nt_tcp_server *server, const struct timeval *timeout) 
 {
-  log_trace("");
   struct event *ev;
   nt_event_base_server *bs;
   size_t num_sockets = (server->socket4 ? 1 : 0) + (server->socket6 ? 1 : 0);

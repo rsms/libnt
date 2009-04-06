@@ -30,7 +30,6 @@
 
 
 static void _dealloc(nt_tcp_server *self) {
-  log_trace("");
   size_t i;
   struct event *ev;
   
@@ -58,7 +57,6 @@ static void _dealloc(nt_tcp_server *self) {
 
 
 nt_tcp_server *nt_tcp_server_new(nt_tcp_server_on_accept *on_accept) {
-  log_trace("");
   int i;
   nt_tcp_server *self;
   
@@ -93,7 +91,6 @@ nt_tcp_server *nt_tcp_server_new(nt_tcp_server_on_accept *on_accept) {
 bool nt_tcp_server_bind(nt_tcp_server *server, const char *addr, short port, 
                         bool ipv6_enabled, bool ipv6_only, bool blocking)
 {
-  log_trace("");
   struct addrinfo hints, *servinfo, *ptr;
   int rv;
   bool rb;
@@ -154,7 +151,6 @@ bool nt_tcp_server_bind(nt_tcp_server *server, const char *addr, short port,
 
 
 const char *nt_tcp_server_host(nt_tcp_server *server) {
-  log_trace("");
   if (server->socket6)
     return nt_tcp_socket_host(server->socket6);
   else if (server->socket4)
@@ -163,7 +159,6 @@ const char *nt_tcp_server_host(nt_tcp_server *server) {
 }
 
 char *nt_tcp_server_hostcpy(nt_tcp_server *server, char *buf, size_t bufsize) {
-  log_trace("");
   if (server->socket6)
     return nt_tcp_socket_hostcpy(server->socket6, buf, bufsize);
   else if (server->socket4)
@@ -172,7 +167,6 @@ char *nt_tcp_server_hostcpy(nt_tcp_server *server, char *buf, size_t bufsize) {
 }
 
 uint16_t nt_tcp_server_port(nt_tcp_server *server) {
-  log_trace("");
   if (server->socket6)
     return nt_tcp_socket_port(server->socket6);
   else if (server->socket4)

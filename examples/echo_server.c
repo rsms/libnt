@@ -12,7 +12,6 @@
 #include <event.h>
 
 static void on_client_connected(nt_tcp_client *client) {
-  log_trace("");
   printf("client %p connected from %s\n", client, nt_tcp_socket_host(client->socket));
   // Send a hello message
   static char data[] = "Send something to me and I will send it back to you my friend.\n";
@@ -20,7 +19,6 @@ static void on_client_connected(nt_tcp_client *client) {
 }
 
 static void on_client_read(struct bufferevent *bev, nt_tcp_client *client) {
-  log_trace("");
   /* 
     Simply write the bev->input to the buffer (bev->output), thus echoing
     bev->input back to the client.
@@ -43,7 +41,6 @@ static void on_client_read(struct bufferevent *bev, nt_tcp_client *client) {
 }
 
 static void on_client_error(struct bufferevent *bev, short what, nt_tcp_client *client) {
-  log_trace("");
   if (what & EVBUFFER_EOF)
     printf("client %p disconnected\n", client);
   else
@@ -52,7 +49,6 @@ static void on_client_error(struct bufferevent *bev, short what, nt_tcp_client *
 }
 
 static void on_accept(int fd, short ev, nt_event_base_server *bs) {
-  log_trace("");
   nt_tcp_client *client;
   if ( (client = nt_tcp_client_accept(bs, fd, &on_client_read, NULL, &on_client_error)) )
     on_client_connected(client);

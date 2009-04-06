@@ -25,7 +25,6 @@
 
 
 static void _dealloc(nt_tcp_client *self) {
-  log_trace("");
   // free the bufferevent
   bufferevent_free(self->bev);
   
@@ -38,7 +37,6 @@ static void _dealloc(nt_tcp_client *self) {
 
 
 nt_tcp_client *nt_tcp_client_new(nt_tcp_socket *socket) {
-  log_trace("");
   nt_tcp_client *self;
   
   if ( !(self = (nt_tcp_client *)malloc(sizeof(nt_tcp_client))) )
@@ -58,7 +56,6 @@ nt_tcp_client *nt_tcp_client_new(nt_tcp_socket *socket) {
 
 
 static void _bev_on_error(struct bufferevent *bev, short what, nt_tcp_client *client) {
-  log_trace("");
   if (!(what & EVBUFFER_EOF)) {
     warn("client socket error -- disconnecting client\n");
   }
@@ -72,7 +69,6 @@ nt_tcp_client *nt_tcp_client_accept(nt_event_base_server *bs,
                                     nt_tcp_client_on_write *on_write,
                                     nt_tcp_client_on_error *on_error)
 {
-  log_trace("");
   nt_tcp_socket *sock;
   nt_tcp_client *client;
   int af, evflags;
