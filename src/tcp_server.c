@@ -20,6 +20,9 @@
   THE SOFTWARE.
 */
 #include "tcp_server.h"
+#include "event_base.h" /* for the size of nt_event_base_server */
+#include "mpool.h"
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -38,13 +41,13 @@ static void _dealloc(nt_tcp_server *self) {
     ev = self->v_accept_evs[i];
     if (ev) {
       event_del(ev);
-      free(ev);
+      nt_free(ev, sizeof(struct event));
     }
   }
   
   // free bs tuples
   for (i=0; i<self->n_bs; i++) {
-    free(self->v_bs[i]);
+    nt_free(self->v_bs[i], sizeof(nt_event_base_server));
   }
   
   // release sockets
@@ -52,7 +55,7 @@ static void _dealloc(nt_tcp_server *self) {
   nt_xrelease(self->socket6);
   
   // finally free ourselves
-  free(self);
+  nt_free(self, sizeof(nt_tcp_server));
 }
 
 
@@ -60,7 +63,7 @@ nt_tcp_server *nt_tcp_server_new(nt_tcp_server_on_accept *on_accept) {
   int i;
   nt_tcp_server *self;
   
-  if ( !(self = (nt_tcp_server *)malloc(sizeof(nt_tcp_server))) )
+  if ( !(self = (nt_tcp_server *)nt_malloc(sizeof(nt_tcp_server))) )
     return NULL;
   
   nt_obj_init((nt_obj *)self, (nt_obj_destructor *)_dealloc);

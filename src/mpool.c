@@ -49,12 +49,15 @@
 #include <unistd.h>
 #include <sys/mman.h>
 
-#if defined(__APPLE__)
-#define HAVE_MEM_MMAP_ANON
+#if defined(MAP_ANON) || defined(MAP_ANONYMOUS)
+  #define HAVE_MEM_MMAP_ANON
+  #ifndef MAP_ANONYMOUS
+    #define MAP_ANONYMOUS MAP_ANON
+  #endif
 #elif defined(__linux__) || defined(IRIX) || defined(__FreeBSD__) || defined(__sgi) || defined(SOLARIS) || defined(__sun) || defined(LIN)
-#define HAVE_MEM_MMAP_ZERO
+  #define HAVE_MEM_MMAP_ZERO
 #else
-#error does your system support mmap(/dev/zero) or mmap(MMAP_ANON)?
+  #error does your system support mmap(/dev/zero) or mmap(MAP_ANON)?
 #endif
 
 #define NT_MPOOL_MAIN
@@ -63,13 +66,17 @@
 #include "mpool_private.h"
 
 /* local variables */
-static	int		_initialized = 0;		/* lib initialized? */
-static	unsigned int	min_bit_free_next = 0;	/* min size of next pnt */
-static	unsigned int	min_bit_free_size = 0;	/* min size of next + size */
-static	unsigned long	bit_array[MAX_BITS + 1]; /* size -> bit */
+static  int    _initialized = 0;    /* lib initialized? */
+static  unsigned int  min_bit_free_next = 0;  /* min size of next pnt */
+static  unsigned int  min_bit_free_size = 0;  /* min size of next + size */
+static  size_t  bit_array[MAX_BITS + 1]; /* size -> bit */
 #if !defined(NT_HAVE_CONSTRUCTOR) && !defined(__SMP__)
 static nt_spinlock_t initlock = (nt_spinlock_t)0;
 #endif
+
+/* global shared pool */
+nt_mpool_t *nt_mpool_shared = NULL;
+int nt_mpool_shared_errno = 0;
 
 /****************************** local utilities ******************************/
 
@@ -90,8 +97,8 @@ static nt_spinlock_t initlock = (nt_spinlock_t)0;
  */
 NT_CONSTRUCTOR static void _init(void)
 {
-  int		bit_c;
-  unsigned long	size = 1;
+  int    bit_c;
+  size_t  size = 1;
   
   /* allocate our free bit array list */
   for (bit_c = 0; bit_c <= MAX_BITS; bit_c++) {
@@ -133,9 +140,9 @@ NT_CONSTRUCTOR static void _init(void)
  *
  * size -> Size of memory of which to calculate the number of bits.
  */
-static	int	size_to_bits(const unsigned long size)
+static  int  size_to_bits(size_t size)
 {
-  int		bit_c = 0;
+  int    bit_c = 0;
   
   for (bit_c = 0; bit_c <= MAX_BITS; bit_c++) {
     if (size <= bit_array[bit_c]) {
@@ -161,9 +168,9 @@ static	int	size_to_bits(const unsigned long size)
  *
  * size -> Size of memory of which to calculate the number of bits.
  */
-static	int	size_to_free_bits(const unsigned long size)
+static  int  size_to_free_bits(size_t size)
 {
-  int		bit_c = 0;
+  int    bit_c = 0;
   
   if (size == 0) {
     return 0;
@@ -193,7 +200,7 @@ static	int	size_to_free_bits(const unsigned long size)
  *
  * bit_n -> Number of bits
  */
-static	unsigned long	bits_to_size(const int bit_n)
+static  size_t  bits_to_size(const int bit_n)
 {
   if (bit_n > MAX_BITS) {
     return bit_array[MAX_BITS];
@@ -225,12 +232,12 @@ static	unsigned long	bits_to_size(const int bit_n)
  * error_p <- Pointer to integer which, if not NULL, will be set with
  * a mpool error code.
  */
-static	void	*alloc_pages(nt_mpool_t *mp_p, const unsigned int page_n,
-			     int *error_p)
+static  void  *alloc_pages(nt_mpool_t *mp_p, const unsigned int page_n,
+           int *error_p)
 {
-  void		*mem, *fill_mem;
-  unsigned long	size, fill;
-  int		state;
+  void    *mem, *fill_mem;
+  size_t  size, fill;
+  int    state;
   
   /* are we over our max-pages? */
   if (mp_p->mp_max_pages > 0 && mp_p->mp_page_c >= mp_p->mp_max_pages) {
@@ -250,27 +257,24 @@ static	void	*alloc_pages(nt_mpool_t *mp_p, const unsigned int page_n,
       SET_POINTER(error_p, NT_MPOOL_ERROR_NO_MEM);
       return NULL;
     }
-    fill = (unsigned long)mem % mp_p->mp_page_size;
+    fill = (size_t)mem % mp_p->mp_page_size;
     
     if (fill > 0) {
       fill = mp_p->mp_page_size - fill;
       fill_mem = sbrk(fill);
       if (fill_mem == (void *)-1) {
-	SET_POINTER(error_p, NT_MPOOL_ERROR_NO_MEM);
-	return NULL;
+  SET_POINTER(error_p, NT_MPOOL_ERROR_NO_MEM);
+  return NULL;
       }
       if ((char *)fill_mem != (char *)mem + size) {
-	SET_POINTER(error_p, NT_MPOOL_ERROR_SBRK_CONTIG);
-	return NULL;
+  SET_POINTER(error_p, NT_MPOOL_ERROR_SBRK_CONTIG);
+  return NULL;
       }
       mem = (char *)mem + fill;
     }
   }
   else {
     state = MAP_PRIVATE;
-#ifdef MAP_FILE
-    state |= MAP_FILE;
-#endif
 #ifdef MAP_VARIABLE
     state |= MAP_VARIABLE;
 #endif
@@ -280,18 +284,20 @@ static	void	*alloc_pages(nt_mpool_t *mp_p, const unsigned int page_n,
 #elif defined(HAVE_MEM_MMAP_ANON)*/
 #if defined(HAVE_MEM_MMAP_ANON)
     //state |= MAP_SHARED;
-    state |= MAP_ANON;
+    state |= MAP_ANONYMOUS;
+#elif defined(MAP_FILE)
+    state |= MAP_FILE;
 #endif
 
     /* mmap from /dev/zero */
     mem = mmap((caddr_t)mp_p->mp_addr, size, PROT_READ | PROT_WRITE, state,
-	       mp_p->mp_fd, mp_p->mp_top);
+         mp_p->mp_fd, mp_p->mp_top);
     if (mem == (void *)MAP_FAILED) {
       if (errno == ENOMEM) {
-	SET_POINTER(error_p, NT_MPOOL_ERROR_NO_MEM);
+  SET_POINTER(error_p, NT_MPOOL_ERROR_NO_MEM);
       }
       else {
-	SET_POINTER(error_p, NT_MPOOL_ERROR_MMAP);
+  SET_POINTER(error_p, NT_MPOOL_ERROR_MMAP);
       }
       return NULL;
     }
@@ -303,7 +309,6 @@ static	void	*alloc_pages(nt_mpool_t *mp_p, const unsigned int page_n,
   
   mp_p->mp_page_c += page_n;
   
-  SET_POINTER(error_p, NT_MPOOL_ERROR_NONE);
   return mem;
 }
 
@@ -328,8 +333,8 @@ static	void	*alloc_pages(nt_mpool_t *mp_p, const unsigned int page_n,
  *
  * sbrk_b -> Set to one if the pages were allocated with sbrk else mmap.
  */
-static	int	free_pages(void *pages, const unsigned long size,
-			   const int sbrk_b)
+static  int  free_pages(void *pages, size_t size,
+         const int sbrk_b)
 {
   if (! sbrk_b) {
     (void)munmap((caddr_t)pages, size);
@@ -357,9 +362,9 @@ static	int	free_pages(void *pages, const unsigned long size,
  *
  * size -> Size of the block.
  */
-static	int	check_magic(const void *addr, const unsigned long size)
+static  int  check_magic(const void *addr, size_t size)
 {
-  const unsigned char	*mem_p;
+  const unsigned char  *mem_p;
   
   /* set our starting point */
   mem_p = (unsigned char *)addr + size;
@@ -387,7 +392,7 @@ static	int	check_magic(const void *addr, const unsigned long size)
  *
  * addr -> Address where to write the magic.
  */
-static	void	write_magic(const void *addr)
+static  void  write_magic(const void *addr)
 {
   *(unsigned char *)addr = FENCE_MAGIC0;
   *((unsigned char *)addr + 1) = FENCE_MAGIC1;
@@ -415,12 +420,10 @@ static	void	write_magic(const void *addr)
  *
  * size -> Size of the address space.
  */
-static	int	free_pointer(nt_mpool_t *mp_p, void *addr,
-			     const unsigned long size)
-{
-  unsigned int	bit_n;
-  unsigned long	real_size;
-  nt_mpool_free_t	free_pnt;
+static int free_pointer(nt_mpool_t *mp_p, void *addr, size_t size) {
+  unsigned int  bit_n;
+  size_t  real_size;
+  nt_mpool_free_t  free_pnt;
   
 #ifdef DEBUG
   (void)printf("freeing a block at %lx of %lu bytes\n", (long)addr, size);
@@ -509,12 +512,12 @@ static	int	free_pointer(nt_mpool_t *mp_p, void *addr,
  *
  * size -> Size of the space that we are taking from address.
  */
-static	int	split_block(nt_mpool_t *mp_p, void *free_addr,
-			    const unsigned long size)
+static  int  split_block(nt_mpool_t *mp_p, void *free_addr,
+          size_t size)
 {
-  nt_mpool_block_t	*block_p, *new_block_p;
-  int		ret, page_n;
-  void		*end_p;
+  nt_mpool_block_t  *block_p, *new_block_p;
+  int    ret, page_n;
+  void    *end_p;
   
   /*
    * 1st we find the block pointer from our free addr.  At this point
@@ -531,7 +534,7 @@ static	int	split_block(nt_mpool_t *mp_p, void *free_addr,
   
   /* we are creating a new block structure for the 2nd ... */
   new_block_p = (nt_mpool_block_t *)((char *)block_p +
-				  SIZE_OF_PAGES(mp_p, page_n));
+          SIZE_OF_PAGES(mp_p, page_n));
   new_block_p->mb_magic = BLOCK_MAGIC;
   /* New bounds is 1st block bounds.  The 1st block's is reset below. */
   new_block_p->mb_bounds_p = block_p->mb_bounds_p;
@@ -549,7 +552,7 @@ static	int	split_block(nt_mpool_t *mp_p, void *free_addr,
     /* now free the rest of the 1st block block */
     end_p = (char *)free_addr + size;
     ret = free_pointer(mp_p, end_p,
-		       (char *)block_p->mb_bounds_p - (char *)end_p);
+           (char *)block_p->mb_bounds_p - (char *)end_p);
     if (ret != NT_MPOOL_ERROR_NONE) {
       return ret;
     }
@@ -557,7 +560,7 @@ static	int	split_block(nt_mpool_t *mp_p, void *free_addr,
   
   /* now free the rest of the block */
   ret = free_pointer(mp_p, FIRST_ADDR_IN_BLOCK(new_block_p),
-		     MEMORY_IN_BLOCK(new_block_p));
+         MEMORY_IN_BLOCK(new_block_p));
   if (ret != NT_MPOOL_ERROR_NONE) {
     return ret;
   }
@@ -587,15 +590,15 @@ static	int	split_block(nt_mpool_t *mp_p, void *free_addr,
  * error_p <- Pointer to integer which, if not NULL, will be set with
  * a mpool error code.
  */
-static	void	*get_space(nt_mpool_t *mp_p, const unsigned long byte_size,
-			   int *error_p)
+static  void  *get_space(nt_mpool_t *mp_p, size_t byte_size,
+         int *error_p)
 {
-  nt_mpool_block_t	*block_p;
-  nt_mpool_free_t	free_pnt;
-  int		ret;
-  unsigned long	size;
-  unsigned int	bit_c, page_n, left;
-  void		*free_addr = NULL, *free_end;
+  nt_mpool_block_t  *block_p;
+  nt_mpool_free_t  free_pnt;
+  int    ret;
+  size_t  size;
+  unsigned int  bit_c, page_n, left;
+  void    *free_addr = NULL, *free_end;
   
   size = byte_size;
   while ((size & (sizeof(void *) - 1)) > 0) {
@@ -654,7 +657,7 @@ static	void	*get_space(nt_mpool_t *mp_p, const unsigned long byte_size,
     
 #ifdef DEBUG
     (void)printf("had to allocate space for %lx of %lu bytes\n",
-		 (long)free_addr, size);
+     (long)free_addr, size);
 #endif
 
     free_end = (char *)free_addr + size;
@@ -680,23 +683,23 @@ static	void	*get_space(nt_mpool_t *mp_p, const unsigned long byte_size,
       
       /* are we are splitting up a multiblock chunk into fewer blocks? */
       if (PAGES_IN_SIZE(mp_p, free_pnt.mf_size) > PAGES_IN_SIZE(mp_p, size)) {
-	ret = split_block(mp_p, free_addr, size);
-	if (ret != NT_MPOOL_ERROR_NONE) {
-	  SET_POINTER(error_p, ret);
-	  return NULL;
-	}
-	/* left over memory was taken care of in split_block */
-	left = 0;
+  ret = split_block(mp_p, free_addr, size);
+  if (ret != NT_MPOOL_ERROR_NONE) {
+    SET_POINTER(error_p, ret);
+    return NULL;
+  }
+  /* left over memory was taken care of in split_block */
+  left = 0;
       }
       else {
-	/* calculate the number of left over bytes */
-	left = free_pnt.mf_size - size;
+  /* calculate the number of left over bytes */
+  left = free_pnt.mf_size - size;
       }
     }
     
 #ifdef DEBUG
     (void)printf("found a free block at %lx of %lu bytes\n",
-		 (long)free_addr, left + size);
+     (long)free_addr, left + size);
 #endif
     
     free_end = (char *)free_addr + size;
@@ -752,11 +755,11 @@ static	void	*get_space(nt_mpool_t *mp_p, const unsigned long byte_size,
  * error_p <- Pointer to integer which, if not NULL, will be set with
  * a mpool error code.
  */
-static	void	*alloc_mem(nt_mpool_t *mp_p, const unsigned long byte_size,
-			   int *error_p)
+static  void  *alloc_mem(nt_mpool_t *mp_p, size_t byte_size,
+         int *error_p)
 {
-  unsigned long	size, fence;
-  void		*addr;
+  size_t  size, fence;
+  void    *addr;
   
   /* make sure we have enough bytes */
   if (byte_size < MIN_ALLOCATION) {
@@ -791,7 +794,6 @@ static	void	*alloc_mem(nt_mpool_t *mp_p, const unsigned long byte_size,
     mp_p->mp_max_alloc = mp_p->mp_user_alloc;
   }
   
-  SET_POINTER(error_p, NT_MPOOL_ERROR_NONE);
   return addr;
 }
 
@@ -817,11 +819,11 @@ static	void	*alloc_mem(nt_mpool_t *mp_p, const unsigned long byte_size,
  *
  * size -> Size of the address being freed.
  */
-static	int	free_mem(nt_mpool_t *mp_p, void *addr, const unsigned long size)
+static  int  free_mem(nt_mpool_t *mp_p, void *addr, size_t size)
 {
-  unsigned long	old_size, fence;
-  int		ret;
-  nt_mpool_block_t	*block_p;
+  size_t  old_size, fence;
+  int    ret;
+  nt_mpool_block_t  *block_p;
   
   /*
    * If the size is larger than a block then the allocation must be at
@@ -829,8 +831,7 @@ static	int	free_mem(nt_mpool_t *mp_p, void *addr, const unsigned long size)
    */
   if (size > MAX_BLOCK_USER_MEMORY(mp_p)) {
     block_p = (nt_mpool_block_t *)((char *)addr - sizeof(nt_mpool_block_t));
-    if (block_p->mb_magic != BLOCK_MAGIC
-	|| block_p->mb_magic2 != BLOCK_MAGIC) {
+    if (block_p->mb_magic != BLOCK_MAGIC || block_p->mb_magic2 != BLOCK_MAGIC) {
       return NT_MPOOL_ERROR_POOL_OVER;
     }
   }
@@ -899,13 +900,13 @@ static	int	free_mem(nt_mpool_t *mp_p, void *addr, const unsigned long size)
  * error_p <- Pointer to integer which, if not NULL, will be set with
  * a mpool error code.
  */
-nt_mpool_t	*nt_mpool_open(const unsigned int flags, const unsigned int page_size,
-		    void *start_addr, int *error_p)
+nt_mpool_t  *nt_mpool_open(const unsigned int flags, const unsigned int page_size,
+        void *start_addr, int *error_p)
 {
-  nt_mpool_block_t	*block_p;
-  int		page_n, ret;
-  nt_mpool_t	mp, *mp_p;
-  void		*free_addr;
+  nt_mpool_block_t  *block_p;
+  int    page_n, ret;
+  nt_mpool_t  mp, *mp_p;
+  void    *free_addr;
   
 #if !defined(NT_HAVE_CONSTRUCTOR) && !defined(__SMP__)
   nt_spinlock_lock(&initlock);
@@ -1016,15 +1017,15 @@ nt_mpool_t	*nt_mpool_open(const unsigned int flags, const unsigned int page_size
     
     /* free the rest of the block */
     ret = free_pointer(&mp, free_addr,
-		       (char *)block_p->mb_bounds_p - (char *)free_addr);
+           (char *)block_p->mb_bounds_p - (char *)free_addr);
     if (ret != NT_MPOOL_ERROR_NONE) {
       if (mp.mp_fd >= 0) {
-	(void)close(mp.mp_fd);
-	mp.mp_fd = -1;
+  (void)close(mp.mp_fd);
+  mp.mp_fd = -1;
       }
       /* NOTE: after this line mp_p will be invalid */
       (void)free_pages(block_p, SIZE_OF_PAGES(&mp, page_n),
-		       BIT_IS_SET(flags, NT_MPOOL_FLAG_USE_SBRK));
+           BIT_IS_SET(flags, NT_MPOOL_FLAG_USE_SBRK));
       SET_POINTER(error_p, ret);
       return NULL;
     }
@@ -1050,7 +1051,6 @@ nt_mpool_t	*nt_mpool_open(const unsigned int flags, const unsigned int page_size
     mp_p->mp_bounds_p = (char *)mp_p + SIZE_OF_PAGES(mp_p, page_n);
   }
   
-  SET_POINTER(error_p, NT_MPOOL_ERROR_NONE);
   return mp_p;
 }
 
@@ -1072,12 +1072,12 @@ nt_mpool_t	*nt_mpool_open(const unsigned int flags, const unsigned int page_size
  *
  * mp_p <-> Pointer to our memory pool.
  */
-int	nt_mpool_close(nt_mpool_t *mp_p)
+int  nt_mpool_close(nt_mpool_t *mp_p)
 {
-  nt_mpool_block_t	*block_p, *next_p;
-  void		*addr;
-  unsigned long	size;
-  int		ret, final = NT_MPOOL_ERROR_NONE;
+  nt_mpool_block_t  *block_p, *next_p;
+  void    *addr;
+  size_t  size;
+  int    ret, final = NT_MPOOL_ERROR_NONE;
   
   /* special case, just return no-error */
   if (mp_p == NULL) {
@@ -1112,7 +1112,7 @@ int	nt_mpool_close(nt_mpool_t *mp_p)
   /* free/invalidate the blocks */
   for (block_p = mp_p->mp_first_p; block_p != NULL; block_p = next_p) {
     if (block_p->mb_magic != BLOCK_MAGIC
-	|| block_p->mb_magic2 != BLOCK_MAGIC) {
+  || block_p->mb_magic2 != BLOCK_MAGIC) {
       final = NT_MPOOL_ERROR_POOL_OVER;
       break;
     }
@@ -1121,7 +1121,7 @@ int	nt_mpool_close(nt_mpool_t *mp_p)
     /* record the next pointer because it might be invalidated below */
     next_p = block_p->mb_next_p;
     ret = free_pages(block_p, (char *)block_p->mb_bounds_p - (char *)block_p,
-		     BIT_IS_SET(mp_p->mp_flags, NT_MPOOL_FLAG_USE_SBRK));
+         BIT_IS_SET(mp_p->mp_flags, NT_MPOOL_FLAG_USE_SBRK));
     if (ret != NT_MPOOL_ERROR_NONE) {
       final = ret;
     }
@@ -1175,11 +1175,11 @@ int	nt_mpool_close(nt_mpool_t *mp_p)
  *
  * mp_p <-> Pointer to our memory pool.
  */
-int	nt_mpool_drain(nt_mpool_t *mp_p)
+int  nt_mpool_drain(nt_mpool_t *mp_p)
 {
-  nt_mpool_block_t	*block_p;
-  int		final = NT_MPOOL_ERROR_NONE, bit_n, ret;
-  void		*first_p;
+  nt_mpool_block_t  *block_p;
+  int    final = NT_MPOOL_ERROR_NONE, bit_n, ret;
+  void    *first_p;
   
   /* special case, just return no-error */
   if (mp_p == NULL) {
@@ -1251,10 +1251,10 @@ int	nt_mpool_drain(nt_mpool_t *mp_p)
  * error_p <- Pointer to integer which, if not NULL, will be set with
  * a mpool error code.
  */
-void	*nt_mpool_alloc(nt_mpool_t *mp_p, const unsigned long byte_size,
-		     int *error_p)
+void  *nt_mpool_alloc(nt_mpool_t *mp_p, size_t byte_size,
+         int *error_p)
 {
-  void	*addr;
+  void  *addr;
   
   if (mp_p == NULL) {
     /* special case -- do a normal malloc */
@@ -1264,7 +1264,6 @@ void	*nt_mpool_alloc(nt_mpool_t *mp_p, const unsigned long byte_size,
       return NULL;
     }
     else {
-      SET_POINTER(error_p, NT_MPOOL_ERROR_NONE);
       return addr;
     }
   }
@@ -1322,11 +1321,11 @@ void	*nt_mpool_alloc(nt_mpool_t *mp_p, const unsigned long byte_size,
  * error_p <- Pointer to integer which, if not NULL, will be set with
  * a mpool error code.
  */
-void	*nt_mpool_calloc(nt_mpool_t *mp_p, const unsigned long ele_n,
-		      const unsigned long ele_size, int *error_p)
+void  *nt_mpool_calloc(nt_mpool_t *mp_p, size_t ele_n,
+          size_t ele_size, int *error_p)
 {
-  void		*addr;
-  unsigned long	byte_size;
+  void    *addr;
+  size_t  byte_size;
   
   if (mp_p == NULL) {
     /* special case -- do a normal calloc */
@@ -1336,7 +1335,6 @@ void	*nt_mpool_calloc(nt_mpool_t *mp_p, const unsigned long ele_n,
       return NULL;
     } 
     else {
-      SET_POINTER(error_p, NT_MPOOL_ERROR_NONE);
       return addr;
     }
 
@@ -1397,7 +1395,7 @@ void	*nt_mpool_calloc(nt_mpool_t *mp_p, const unsigned long ele_n,
  *
  * size -> Size of the address being freed.
  */
-int	nt_mpool_free(nt_mpool_t *mp_p, void *addr, const unsigned long size)
+int nt_mpool_free(nt_mpool_t *mp_p, void *addr, size_t size)
 {
   int rc;
   
@@ -1464,15 +1462,15 @@ int	nt_mpool_free(nt_mpool_t *mp_p, void *addr, const unsigned long size)
  * error_p <- Pointer to integer which, if not NULL, will be set with
  * a mpool error code.
  */
-void	*nt_mpool_resize(nt_mpool_t *mp_p, void *old_addr,
-		      const unsigned long old_byte_size,
-		      const unsigned long new_byte_size,
-		      int *error_p)
+void  *nt_mpool_resize(nt_mpool_t *mp_p, void *old_addr,
+          size_t old_byte_size,
+          size_t new_byte_size,
+          int *error_p)
 {
-  unsigned long	copy_size, new_size, old_size, fence;
-  void		*new_addr;
-  nt_mpool_block_t	*block_p;
-  int		ret;
+  size_t  copy_size, new_size, old_size, fence;
+  void    *new_addr;
+  nt_mpool_block_t  *block_p;
+  int    ret;
   
   if (mp_p == NULL) {
     /* special case -- do a normal realloc */
@@ -1482,7 +1480,6 @@ void	*nt_mpool_resize(nt_mpool_t *mp_p, void *old_addr,
       return NULL;
     } 
     else {
-      SET_POINTER(error_p, NT_MPOOL_ERROR_NONE);
       return new_addr;
     }
   }
@@ -1590,11 +1587,10 @@ void	*nt_mpool_resize(nt_mpool_t *mp_p, void *old_addr,
 #ifdef NT_POOL_ENABLE_LOGGING
   if (mp_p->mp_log_func != NULL) {
     mp_p->mp_log_func(mp_p, NT_MPOOL_FUNC_RESIZE, new_byte_size,
-		      0, new_addr, old_addr, old_byte_size);
+          0, new_addr, old_addr, old_byte_size);
   }
 #endif
   
-  SET_POINTER(error_p, NT_MPOOL_ERROR_NONE);
   return new_addr;
 }
 
@@ -1618,25 +1614,25 @@ void	*nt_mpool_resize(nt_mpool_t *mp_p, void *old_addr,
  * page_size_p <- Pointer to an unsigned integer which, if not NULL,
  * will be set to the page-size of the pool.
  *
- * num_alloced_p <- Pointer to an unsigned long which, if not NULL,
+ * num_alloced_p <- Pointer to an size_t which, if not NULL,
  * will be set to the number of pointers currently allocated in pool.
  *
- * user_alloced_p <- Pointer to an unsigned long which, if not NULL,
+ * user_alloced_p <- Pointer to an size_t which, if not NULL,
  * will be set to the number of user bytes allocated in this pool.
  *
- * max_alloced_p <- Pointer to an unsigned long which, if not NULL,
+ * max_alloced_p <- Pointer to an size_t which, if not NULL,
  * will be set to the maximum number of user bytes that have been
  * allocated in this pool.
  *
- * tot_alloced_p <- Pointer to an unsigned long which, if not NULL,
+ * tot_alloced_p <- Pointer to an size_t which, if not NULL,
  * will be set to the total amount of space (including administrative
  * overhead) used by the pool.
  */
-int	nt_mpool_stats(const nt_mpool_t *mp_p, unsigned int *page_size_p,
-		    unsigned long *num_alloced_p,
-		    unsigned long *user_alloced_p,
-		    unsigned long *max_alloced_p,
-		    unsigned long *tot_alloced_p)
+int  nt_mpool_stats(const nt_mpool_t *mp_p, unsigned int *page_size_p,
+        size_t *num_alloced_p,
+        size_t *user_alloced_p,
+        size_t *max_alloced_p,
+        size_t *tot_alloced_p)
 {
   if (mp_p == NULL) {
     return NT_MPOOL_ERROR_ARG_NULL;
@@ -1681,7 +1677,7 @@ int	nt_mpool_stats(const nt_mpool_t *mp_p, unsigned int *page_size_p,
  * log_func -> Log function (defined in mpool.h) which will be called
  * with each mpool transaction.
  */
-int	nt_mpool_set_log_func(nt_mpool_t *mp_p, nt_mpool_log_func_t log_func)
+int  nt_mpool_set_log_func(nt_mpool_t *mp_p, nt_mpool_log_func_t log_func)
 {
 #ifdef NT_POOL_ENABLE_LOGGING
   if (mp_p == NULL) {
@@ -1726,7 +1722,7 @@ int	nt_mpool_set_log_func(nt_mpool_t *mp_p, nt_mpool_log_func_t log_func)
  *
  * max_pages -> Maximum number of pages used by the library.
  */
-int	nt_mpool_set_max_pages(nt_mpool_t *mp_p, const unsigned int max_pages)
+int nt_mpool_set_max_pages(nt_mpool_t *mp_p, const unsigned int max_pages)
 {
   if (mp_p == NULL) {
     return NT_MPOOL_ERROR_ARG_NULL;
@@ -1773,7 +1769,7 @@ int	nt_mpool_set_max_pages(nt_mpool_t *mp_p, const unsigned int max_pages)
  *
  * error -> Error number that we are converting.
  */
-const char	*nt_mpool_strerror(const int error)
+const char  *nt_mpool_strerror(const int error)
 {
   switch (error) {
   case NT_MPOOL_ERROR_NONE:

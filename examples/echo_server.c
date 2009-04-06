@@ -49,6 +49,7 @@ static void on_client_error(struct bufferevent *bev, short what, nt_tcp_client *
 }
 
 static void on_accept(int fd, short ev, nt_event_base_server *bs) {
+  printf("event: accept\n");
   nt_tcp_client *client;
   if ( (client = nt_tcp_client_accept(bs, fd, &on_client_read, NULL, &on_client_error)) )
     on_client_connected(client);

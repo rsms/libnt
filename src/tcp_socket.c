@@ -21,6 +21,7 @@
 */
 #include "tcp_socket.h"
 #include "util.h"
+#include "mpool.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -31,14 +32,14 @@ static void _dealloc(nt_tcp_socket *self) {
   nt_tcp_socket_close(self);
   if (self->addr)
     free(self->addr);
-  free(self);
+  nt_free(self, sizeof(nt_tcp_socket));
 }
 
 
 nt_tcp_socket *nt_tcp_socket_new(int fd) {
   nt_tcp_socket *self;
   
-  if ( !(self = (nt_tcp_socket *)malloc(sizeof(nt_tcp_socket))) )
+  if ( !(self = (nt_tcp_socket *)nt_malloc(sizeof(nt_tcp_socket))) )
     return NULL;
   
   nt_obj_init((nt_obj *)self, (nt_obj_destructor *)_dealloc);

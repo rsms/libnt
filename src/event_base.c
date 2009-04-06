@@ -23,11 +23,12 @@
 */
 #include "event_base.h"
 #include "atomic.h"
+#include "mpool.h"
 
 static void _dealloc(nt_event_base *self) {
   if (self->ev_base)
     event_base_free(self->ev_base);
-  free(self);
+  nt_free(self, sizeof(nt_event_base));
 }
 
 
@@ -51,7 +52,7 @@ nt_event_base *nt_event_base_default() {
 
 nt_event_base *nt_event_base_new() {
   nt_event_base *self;
-  if ((self = (nt_event_base *)malloc(sizeof(nt_event_base))) == NULL)
+  if ((self = (nt_event_base *)nt_malloc(sizeof(nt_event_base))) == NULL)
     return NULL;
   nt_obj_init((nt_obj *)self, (nt_obj_destructor *)_dealloc);
   self->ev_base = event_base_new();
@@ -75,7 +76,7 @@ bool nt_event_base_add_socket(nt_event_base *self,
   }
   
   if (event_add(ev, timeout) != 0) {
-    event_del(ev);
+    event_del(ev); // todo xxx really del if add failed?
     warnx("nt_event_base_add_socket: event_add() failed");
     return false;
   }
@@ -92,7 +93,7 @@ static inline struct event *_mk_add_accept_ev(nt_event_base_server *bs,
   struct event *ev;
   bool success;
   
-  ev = (struct event *)malloc(sizeof(struct event));
+  ev = (struct event *)nt_malloc(sizeof(struct event));
   if (!ev) {
     /* errno == ENOMEM */
     return NULL;
@@ -128,7 +129,7 @@ bool nt_event_base_add_server(nt_event_base *base, nt_tcp_server *server, const 
   }
   
   // base+server conduit
-  bs = (nt_event_base_server *)malloc(sizeof(nt_event_base_server));
+  bs = (nt_event_base_server *)nt_malloc(sizeof(nt_event_base_server));
   bs->base = base;
   bs->server = server;
   server->v_bs[nt_atomic_fetch_and_inc32(&server->n_bs)] = (void *)bs;

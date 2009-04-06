@@ -22,7 +22,7 @@
 #include "tcp_client.h"
 #include "tcp_server.h"
 #include "event_base.h"
-
+#include "mpool.h"
 
 static void _dealloc(nt_tcp_client *self) {
   // free the bufferevent
@@ -32,14 +32,14 @@ static void _dealloc(nt_tcp_client *self) {
   nt_xrelease(self->socket);
   
   // finally free ourselves
-  free(self);
+  nt_free(self, sizeof(nt_tcp_client));
 }
 
 
 nt_tcp_client *nt_tcp_client_new(nt_tcp_socket *socket) {
   nt_tcp_client *self;
   
-  if ( !(self = (nt_tcp_client *)malloc(sizeof(nt_tcp_client))) )
+  if ( !(self = (nt_tcp_client *)nt_malloc(sizeof(nt_tcp_client))) )
     return NULL;
   
   nt_obj_init((nt_obj *)self, (nt_obj_destructor *)_dealloc);
