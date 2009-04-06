@@ -42,7 +42,7 @@ nt_tcp_client *nt_tcp_client_new(nt_tcp_socket *socket) {
   if ( !(self = (nt_tcp_client *)nt_malloc(sizeof(nt_tcp_client))) )
     return NULL;
   
-  nt_obj_init((nt_obj *)self, (nt_obj_destructor *)_dealloc);
+  nt_obj_init((nt_obj *)self, (nt_obj_deallocator *)_dealloc);
   
   // Socket
   nt_xretain(socket);
@@ -76,7 +76,7 @@ nt_tcp_client *nt_tcp_client_accept(nt_event_base_server *bs,
   //af = (bs->server->socket6 && bs->server->socket6->fd == server_fd) ? AF_INET6 : AF_INET;
   
   // Create socket
-  if ( (sock = nt_tcp_socket_new(-1)) == NULL )
+  if ( (sock = nt_tcp_socket_new()) == NULL )
     return NULL;
   
   // Accept connection

@@ -36,7 +36,7 @@ typedef struct nt_tcp_socket {
   struct sockaddr_storage addr;
 } nt_tcp_socket;
 
-nt_tcp_socket *nt_tcp_socket_new(int fd);
+nt_tcp_socket *nt_tcp_socket_new();
 
 // Return a human readable string representing the host address of socket.
 // This is not thread safe (See nt_tcp_socket_hostcpy() for a thread safe version).
@@ -57,12 +57,18 @@ bool nt_tcp_socket_listen(nt_tcp_socket *self, int backlog);
 // Accept a connection from @server_fd
 bool nt_tcp_socket_accept(nt_tcp_socket *self, int server_fd);
 
-// Close
-bool nt_tcp_socket_close(nt_tcp_socket *self);
+// Return the socket address family (e.g. AF_INET, AF_INET6)
+NT_STATIC_INLINE sa_family_t nt_tcp_socket_family(nt_tcp_socket *self) {
+  /* the family is the first member of struct sockaddr: */
+  return (sa_family_t)( *((sa_family_t *)(&self->addr)) );
+}
 
 // Check if the socket is open
-inline static bool nt_tcp_socket_is_open(nt_tcp_socket *self) {
+NT_STATIC_INLINE bool nt_tcp_socket_is_open(nt_tcp_socket *self) {
   return (self->fd != -1) ? true : false;
 }
+
+// Close
+bool nt_tcp_socket_close(nt_tcp_socket *self);
 
 #endif

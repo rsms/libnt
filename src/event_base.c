@@ -54,7 +54,7 @@ nt_event_base *nt_event_base_new() {
   nt_event_base *self;
   if ((self = (nt_event_base *)nt_malloc(sizeof(nt_event_base))) == NULL)
     return NULL;
-  nt_obj_init((nt_obj *)self, (nt_obj_destructor *)_dealloc);
+  nt_obj_init((nt_obj *)self, (nt_obj_deallocator *)_dealloc);
   self->ev_base = event_base_new();
   return self;
 }

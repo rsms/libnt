@@ -70,7 +70,7 @@
 
 #define nt_atomic_sub_and_fetch32(ptr, n) nt_atomic_sub32(ptr, n)
 
-inline static int32_t nt_atomic_fetch_and_add32(volatile int32_t *ptr, int32_t n) {
+NT_STATIC_INLINE int32_t nt_atomic_fetch_and_add32(volatile int32_t *ptr, int32_t n) {
   int32_t oldval;
   do {
     oldval = nt_atomic_read32(ptr);

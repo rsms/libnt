@@ -56,7 +56,7 @@ nt_event_base *nt_event_base_default();
                 until no events exist)
   @return 0 if successful, -1 if an error occurred, or 1 if no events were registered.
 */
-inline static int nt_event_base_loop(nt_event_base *self, int flags) {
+NT_STATIC_INLINE int nt_event_base_loop(nt_event_base *self, int flags) {
   return event_base_loop(self->ev_base, flags);
 }
 
@@ -73,7 +73,7 @@ inline static int nt_event_base_loop(nt_event_base *self, int flags) {
                   NULL to wait forever.
   @return 0 if successful, or -1 if an error occurred
  */
-inline static int nt_event_base_exit(nt_event_base *self, struct timeval *timeout) {
+NT_STATIC_INLINE int nt_event_base_exit(nt_event_base *self, struct timeval *timeout) {
   return event_base_loopexit(self->ev_base, timeout);
 }
 
@@ -88,7 +88,7 @@ inline static int nt_event_base_exit(nt_event_base *self, struct timeval *timeou
 
   @return 0 if successful, or -1 if an error occurred
  */
-inline static int nt_event_base_abort(nt_event_base *self) {
+NT_STATIC_INLINE int nt_event_base_abort(nt_event_base *self) {
   return event_base_loopbreak(self->ev_base);
 }
 

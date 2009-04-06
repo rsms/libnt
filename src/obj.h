@@ -31,16 +31,16 @@
 
 struct nt_obj *obj;
 
-typedef void (nt_obj_destructor)(struct nt_obj *obj);
+typedef void (nt_obj_deallocator)(struct nt_obj *obj);
 
 typedef struct nt_obj {
   /* refcount - the actual reference counter */
   volatile int32_t refcount;
   
-  /* destructor - pointer to the function that will clean up the object when
+  /* deallocator - pointer to the function that will clean up the object when
    *              the last reference to the object is released. Required.
    */
-  volatile nt_obj_destructor *destructor;
+  volatile nt_obj_deallocator *deallocator;
 } nt_obj;
 
 /* Convenience macros with type casting */
@@ -91,31 +91,40 @@ typedef struct nt_obj {
 #define nt_obj_get_refcount(obj) nt_atomic_read32(&((obj)->refcount))
 
 /**
- * nt_obj_set_destructor - set destructor.
+ * nt_obj_set_deallocator - set deallocator.
  * @obj: object in question.
- * @destructor: pointer to a destructor.
+ * @deallocator: pointer to a deallocator.
  */
-#define nt_obj_set_destructor(obj, destructor) \
-  nt_atomic_setptr((void * volatile *)&( ((nt_obj *)(obj))->destructor ), \
-                   (nt_obj_destructor *)(destructor))
+#define nt_obj_set_deallocator(obj, deallocator) \
+  nt_atomic_setptr((void * volatile *)&( ((nt_obj *)(obj))->deallocator ), \
+    (nt_obj_deallocator *)(deallocator))
 
 /**
- * nt_obj_init - initialize object.
- * @obj: object in question.
+  Initialize an object, setting refcount to 1 and assign a deallocator.
+  
+  @obj: object in question.
  */
-inline static void nt_obj_init(nt_obj *obj, nt_obj_destructor *destructor) {
+NT_STATIC_INLINE void nt_obj_init(nt_obj *obj, nt_obj_deallocator *deallocator) {
   nt_obj_set_refcount(obj, 1);
-  if (!destructor) {
-    destructor = (nt_obj_destructor *)&free;
-  }
-  nt_obj_set_destructor(obj, destructor);
+  nt_obj_set_deallocator(obj, deallocator);
 }
+
+/**
+  Fast (and non-thread safe) version of nt_obj_init
+  
+  @obj: object in question.
+ */
+#define NT_OBJ_INIT(obj, deallocator) \
+  do { \
+    obj->refcount = 1; \
+    obj->deallocator = deallocator; \
+  } while(0);
 
 /**
  * nt_obj_get - increment refcount for object.
  * @obj: object.
  */
-inline static void nt_obj_get(nt_obj *obj) {
+NT_STATIC_INLINE void nt_obj_get(nt_obj *obj) {
 #if !defined(NT_OBJ_REFCOUNT_CHECKS) || NT_OBJ_REFCOUNT_CHECKS
   if (nt_atomic_inc_and_fetch32(&obj->refcount) == 1)
     warnx("nt_obj_get: trying to get reference to dead object");
@@ -134,15 +143,15 @@ inline static void nt_obj_get(nt_obj *obj) {
  * memory.  Only use the return value if you want to see if the ntref is now
  * gone, not present.
  */
-inline static int nt_obj_put(nt_obj *obj) {
+NT_STATIC_INLINE int nt_obj_put(nt_obj *obj) {
   if (nt_atomic_dec_and_fetch32(&((obj)->refcount)) == 0) {
 #if !defined(NT_OBJ_REFCOUNT_CHECKS) || NT_OBJ_REFCOUNT_CHECKS
-    if (obj->destructor == NULL) {
-      warnx("nt_obj_put: NULL destructor when trying to deallocate");
+    if (obj->deallocator == NULL) {
+      warnx("nt_obj_put: NULL deallocator when trying to deallocate");
       return 0;
     }
 #endif
-    obj->destructor(obj);
+    obj->deallocator(obj);
     return 1;
   }
   return 0;
@@ -156,7 +165,7 @@ inline static int nt_obj_put(nt_obj *obj) {
  *
  * Returns the previous value of @obj
  */
-inline static nt_obj *nt_obj_swap(nt_obj * volatile *obj, nt_obj *newobj) {
+NT_STATIC_INLINE nt_obj *nt_obj_swap(nt_obj * volatile *obj, nt_obj *newobj) {
   nt_obj *oldobj;
   if (*obj != newobj) {
     oldobj = (nt_obj *)nt_atomic_fetch_and_setptr((void * volatile *)obj, (void *)newobj);

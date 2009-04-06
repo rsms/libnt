@@ -10,11 +10,11 @@ LIB_S_OBJS = ${LIB_S_SRCS:.s=.o}
 LIB_C_OBJS = ${LIB_C_SRCS:.c=.o}
 LIB_OBJS=${LIB_S_OBJS} ${LIB_C_OBJS}
 
-TESTS = mpool atomic_queue
+TESTS = refcount mpool atomic_queue
 TEST_SRCS = $(foreach n,$(TESTS),tests/$(n).c)
 TEST_OBJS = ${TEST_SRCS:.c=.o}
 
-EXAMPLES = object echo_server
+EXAMPLES = echo_server
 EXAMPLE_SRCS = $(foreach n,$(EXAMPLES),examples/$(n).c)
 EXAMPLE_OBJS = $(foreach n,$(EXAMPLES),examples/$(n).o)
 #EXAMPLE_OBJS = ${EXAMPLES_SRCS:.c=.o}

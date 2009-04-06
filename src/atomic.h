@@ -53,7 +53,7 @@
 #define nt_atomic_dec32(ptr) nt_atomic_sub_and_fetch32(ptr, 1)
 
 // fetch and set pointer
-inline static void *nt_atomic_fetch_and_setptr(void * volatile *ptr, void *newval) {
+NT_STATIC_INLINE void *nt_atomic_fetch_and_setptr(void * volatile *ptr, void *newval) {
   void *oldval;
   do {
     oldval = nt_atomic_readptr(ptr);
@@ -62,7 +62,7 @@ inline static void *nt_atomic_fetch_and_setptr(void * volatile *ptr, void *newva
 }
 
 // fetch and set 32-bit integer
-inline static int32_t nt_atomic_fetch_and_set32(volatile int32_t *ptr, int32_t newval) {
+NT_STATIC_INLINE int32_t nt_atomic_fetch_and_set32(volatile int32_t *ptr, int32_t newval) {
   int32_t oldval;
   do {
     oldval = nt_atomic_read32(ptr);
@@ -76,7 +76,7 @@ inline static int32_t nt_atomic_fetch_and_set32(volatile int32_t *ptr, int32_t n
   
   Executes the eieio instruction on PowerPC processors.
 */
-inline static void atomic_synchronize_io(void) {
+NT_STATIC_INLINE void atomic_synchronize_io(void) {
 #if defined(__ppc__)
   __asm__("eieio");
 #endif

@@ -66,7 +66,7 @@ nt_tcp_server *nt_tcp_server_new(nt_tcp_server_on_accept *on_accept) {
   if ( !(self = (nt_tcp_server *)nt_malloc(sizeof(nt_tcp_server))) )
     return NULL;
   
-  nt_obj_init((nt_obj *)self, (nt_obj_destructor *)_dealloc);
+  nt_obj_init((nt_obj *)self, (nt_obj_deallocator *)_dealloc);
   
   // Listening sockets
   self->socket4 = NULL;
@@ -125,7 +125,7 @@ bool nt_tcp_server_bind(nt_tcp_server *server, const char *addr, short port,
       // v6
       if (ipv6_enabled) {
         if (server->socket6 == NULL)
-          server->socket6 = nt_tcp_socket_new(-1);
+          server->socket6 = nt_tcp_socket_new();
         rb = nt_tcp_socket_bind(server->socket6, ptr, ipv6_only, blocking);
         rb = rb && nt_tcp_socket_listen(server->socket6, SOMAXCONN);
         if (!rb) {
@@ -137,7 +137,7 @@ bool nt_tcp_server_bind(nt_tcp_server *server, const char *addr, short port,
     else if(!ipv6_only) {
       // v4
       if (server->socket4 == NULL)
-        server->socket4 = nt_tcp_socket_new(-1);
+        server->socket4 = nt_tcp_socket_new();
       rb = nt_tcp_socket_bind(server->socket4, ptr, false, blocking);
       rb = rb && nt_tcp_socket_listen(server->socket4, SOMAXCONN);
       if (!rb) {

@@ -14,8 +14,11 @@ typedef struct myobj {
   int myint;
 } myobj;
 
+static bool myobj_deallocator_was_called = false;
+
 void myobj_deallocator(nt_obj *obj) {
   printf("myobj_deallocator called with obj @ %p\n", obj);
+  myobj_deallocator_was_called = true;
   //free(obj);
 }
 
@@ -52,8 +55,12 @@ int main (int argc, char const *argv[]) {
   // it is a fault to access obj beyond this point, as there are no longer any
   // references to obj and it might have been freed.
   
+  // but in this case, we do not free() our object, just so we can perform this check.
+  assert(myobj_deallocator_was_called == true);
+  assert(nt_obj_get_refcount((nt_obj *)obj) == 0);
+  
   // try the warning mechanism
-  nt_getref(obj); // emits a warning on stderr because refcount < 1
+  //nt_getref(obj); // emits a warning on stderr because refcount < 1
   
   return 0;
 }

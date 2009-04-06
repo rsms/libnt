@@ -34,15 +34,15 @@ static void _dealloc(nt_tcp_socket *self) {
 }
 
 
-nt_tcp_socket *nt_tcp_socket_new(int fd) {
+nt_tcp_socket *nt_tcp_socket_new() {
   nt_tcp_socket *self;
   
   if ( !(self = (nt_tcp_socket *)nt_malloc(sizeof(nt_tcp_socket))) )
     return NULL;
   
-  nt_obj_init((nt_obj *)self, (nt_obj_destructor *)_dealloc);
+  nt_obj_init((nt_obj *)self, (nt_obj_deallocator *)_dealloc);
   
-  self->fd = fd;
+  self->fd = -1;
   memset(&self->addr, 0, sizeof(struct sockaddr_storage));
   
   return self;
