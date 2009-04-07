@@ -6,7 +6,11 @@
   #define NT_STATIC_PURE_INLINE   static __inline__ __attribute__((always_inline, pure))
   #define NT_EXPECT(cond, expect) __builtin_expect(cond, expect)
   #define NT_ATTR(attr, ...)      __attribute__((attr, ##__VA_ARGS__))
-  #define NT_HAVE_CONSTRUCTOR     1
+  #ifndef __objc__
+    /* Not yet implemented for obj-c in GCC */
+    #define NT_HAVE_CONSTRUCTOR   1
+    #define NT_HAVE_DESTRUCTOR    1
+  #endif
 #else
   #define NT_STATIC_INLINE        static __inline__
   #define NT_STATIC_PURE_INLINE   static __inline__
@@ -14,7 +18,18 @@
   #define NT_ATTR(attr, ...)
 #endif /* gcc >=4.0 */
 
+/**
+  The constructor attribute causes the function to be called automatically
+  before execution enters main().
+*/
 #define NT_CONSTRUCTOR  NT_ATTR(constructor)
+
+/**
+  The destructor attribute causes the function to be called automatically
+  after main() has completed or exit() has been called.
+*/
+#define NT_DESTRUCTOR  NT_ATTR(destructor)
+
 
 #ifndef __FILENAME__
   #include <string.h>
