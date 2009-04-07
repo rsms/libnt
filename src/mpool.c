@@ -28,6 +28,8 @@
   If you are compiling with __SMP__ defined, this implementation will not use
   barriers/spinlocks in order to be thread safe. This gives a small performance
   increase at the cost of thread-safety.
+  
+  Define NT_MPOOL_DEBUG to print information about operations to stderr.
 */
 
 /*
@@ -43,11 +45,16 @@
 
 #include <errno.h>
 #include <fcntl.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <sys/mman.h>
+
+/* log_debug is only present ifdef DEBUG and is needed ifdef NT_MPOOL_DEBUG */
+#if defined(NT_MPOOL_DEBUG) && !defined(DEBUG)
+  #include <stdio.h>
+  #define log_debug(fmt, ...) fprintf(stderr, "%s " fmt "\n", SRC_MODULE, ##__VA_ARGS__)
+#endif
 
 #if defined(MAP_ANON) || defined(MAP_ANONYMOUS)
   #define HAVE_MEM_MMAP_ANON
@@ -124,6 +131,22 @@ NT_CONSTRUCTOR static void _init(void)
   
   _initialized = 1;
 }
+
+
+#if NT_HAVE_DESTRUCTOR
+/**
+  Library finalization
+*/
+NT_DESTRUCTOR static void _finalize(void) {
+  /* Close the globally shared mpool, if open */
+  if (nt_mpool_shared) {
+    /* yes, nt_mpool_close is thread-safe */
+    nt_mpool_close(nt_mpool_shared);
+    nt_mpool_shared = NULL;
+  }
+}
+#endif
+
 
 /*
  * static int size_to_bits
@@ -247,8 +270,8 @@ static  void  *alloc_pages(nt_mpool_t *mp_p, const unsigned int page_n,
   
   size = SIZE_OF_PAGES(mp_p, page_n);
   
-#ifdef DEBUG
-  (void)printf("allocating %u pages or %lu bytes\n", page_n, size);
+#ifdef NT_MPOOL_DEBUG
+  log_debug("allocating %u pages or %zu bytes", page_n, size);
 #endif
   
   if (BIT_IS_SET(mp_p->mp_flags, NT_MPOOL_FLAG_USE_SBRK)) {
@@ -425,8 +448,8 @@ static int free_pointer(nt_mpool_t *mp_p, void *addr, size_t size) {
   size_t  real_size;
   nt_mpool_free_t  free_pnt;
   
-#ifdef DEBUG
-  (void)printf("freeing a block at %lx of %lu bytes\n", (long)addr, size);
+#ifdef NT_MPOOL_DEBUG
+  log_debug("freeing a block at %lx of %zu bytes", (long)addr, size);
 #endif
   
   if (size == 0) {
@@ -655,9 +678,8 @@ static  void  *get_space(nt_mpool_t *mp_p, size_t byte_size,
     
     free_addr = FIRST_ADDR_IN_BLOCK(block_p);
     
-#ifdef DEBUG
-    (void)printf("had to allocate space for %lx of %lu bytes\n",
-     (long)free_addr, size);
+#ifdef NT_MPOOL_DEBUG
+    log_debug("had to allocate space for %p of %zu bytes", free_addr, size);
 #endif
 
     free_end = (char *)free_addr + size;
@@ -697,9 +719,8 @@ static  void  *get_space(nt_mpool_t *mp_p, size_t byte_size,
       }
     }
     
-#ifdef DEBUG
-    (void)printf("found a free block at %lx of %lu bytes\n",
-     (long)free_addr, left + size);
+#ifdef NT_MPOOL_DEBUG
+    log_debug("found a free block at %p of %zu bytes", free_addr, left + size);
 #endif
     
     free_end = (char *)free_addr + size;
