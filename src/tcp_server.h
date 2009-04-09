@@ -26,7 +26,7 @@
 
 #include "obj.h"
 #include "util.h"
-#include "tcp_socket.h"
+#include "tcp_fd.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -84,7 +84,7 @@ nt_tcp_server *nt_tcp_server_new(nt_tcp_server_on_accept *on_accept);
   Bind server to address and port
 */
 bool nt_tcp_server_bind(nt_tcp_server *server, const char *addr, short port,
-                        bool ipv6_enabled, bool ipv6_only, bool blocking);
+                        bool ipv6_enabled, bool ipv6_only);
 
 /**
   Runs the servers loop. Possible flags:

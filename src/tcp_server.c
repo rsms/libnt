@@ -20,7 +20,7 @@
   THE SOFTWARE.
 */
 #include "tcp_server.h"
-#include "event_base.h" /* for the size of nt_event_base_server */
+#include "runloop.h" /* for the size of nt_event_base_server */
 #include "mpool.h"
 
 #include <stdlib.h>
@@ -92,7 +92,7 @@ nt_tcp_server *nt_tcp_server_new(nt_tcp_server_on_accept *on_accept) {
 
 
 bool nt_tcp_server_bind(nt_tcp_server *server, const char *addr, short port, 
-                        bool ipv6_enabled, bool ipv6_only, bool blocking)
+                        bool ipv6_enabled, bool ipv6_only)
 {
   struct addrinfo hints, *servinfo, *ptr;
   int rv;
@@ -126,7 +126,7 @@ bool nt_tcp_server_bind(nt_tcp_server *server, const char *addr, short port,
       if (ipv6_enabled) {
         if (server->socket6 == NULL)
           server->socket6 = nt_tcp_socket_new();
-        rb = nt_tcp_socket_bind(server->socket6, ptr, ipv6_only, blocking);
+        rb = nt_tcp_socket_bind(server->socket6, ptr, ipv6_only);
         rb = rb && nt_tcp_socket_listen(server->socket6, SOMAXCONN);
         if (!rb) {
           freeaddrinfo(servinfo);
@@ -138,7 +138,7 @@ bool nt_tcp_server_bind(nt_tcp_server *server, const char *addr, short port,
       // v4
       if (server->socket4 == NULL)
         server->socket4 = nt_tcp_socket_new();
-      rb = nt_tcp_socket_bind(server->socket4, ptr, false, blocking);
+      rb = nt_tcp_socket_bind(server->socket4, ptr, false);
       rb = rb && nt_tcp_socket_listen(server->socket4, SOMAXCONN);
       if (!rb) {
         freeaddrinfo(servinfo);

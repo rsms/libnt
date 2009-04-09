@@ -1,7 +1,7 @@
 SOURCES=ex_obj.c
 EXECUTABLE=build/ex_obj
 #CC=gcc-4.2
-CFLAGS=-c -Wall -DDEBUG=1
+CFLAGS=-c -Wall -DNT_DEBUG=1
 LDFLAGS=
 OBJECTS=$(SOURCES:.c=.o)
 

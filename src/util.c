@@ -26,30 +26,6 @@
 #include <arpa/inet.h>
 #include <err.h>
 
-char *nt_util_sockaddr_hostcpy(const struct sockaddr *sa, char *buf, size_t bufsize) {
-  const void *ia;
-  if (sa->sa_family == AF_INET) {
-    struct sockaddr_in const *sin;
-    sin = (struct sockaddr_in const *)sa;
-    ia = &sin->sin_addr;
-  }
-  else if (sa->sa_family == AF_INET6) {
-    struct sockaddr_in6 const *sin;
-    sin = (struct sockaddr_in6 const *)sa;
-    ia = &sin->sin6_addr;
-  }
-  else {
-    warnx("unsupported sa_family: %d", sa->sa_family);
-    return NULL;
-  }
-  
-  if (inet_ntop(sa->sa_family, ia, buf, bufsize-1) == NULL) {
-    perror("inet_ntop");
-    return NULL;
-  }
-  return buf;
-}
-
 uint16_t nt_util_sockaddr_port(struct sockaddr const *sa) {
   if (sa->sa_family == AF_INET) {
     struct sockaddr_in const *sin;

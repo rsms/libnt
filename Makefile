@@ -4,8 +4,8 @@ LIB_S_SRCS =  src/atomic_queue_asmimpl.s
 LIB_C_SRCS =  src/util.c src/machine.c \
               src/mpool.c \
               src/atomic_queue.c \
-              src/event_base.c \
-              src/tcp_socket.c src/tcp_server.c src/tcp_client.c
+              src/runloop.c \
+              src/tcp_fd.c src/tcp_server.c src/tcp_client.c
 LIB_S_OBJS = ${LIB_S_SRCS:.s=.o}
 LIB_C_OBJS = ${LIB_C_SRCS:.c=.o}
 LIB_OBJS=${LIB_S_OBJS} ${LIB_C_OBJS}
@@ -26,7 +26,7 @@ CC=gcc
 SFLAGS=
 CFLAGS += -Wall -include src/_prefix.h
 CFLAGS += -std=c99
-CFLAGS += -DDEBUG=1
+CFLAGS += -DNT_DEBUG=1
 #CFLAGS += -DNT_LOG_TRACE=1
 CFLAGS += -I/opt/local/include
 TOOL_CFLAGS = -Lbuild/libs -lnt -levent

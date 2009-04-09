@@ -7,7 +7,6 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
-#include <assert.h>
 
 typedef struct myobj {
   NT_OBJ_HEAD

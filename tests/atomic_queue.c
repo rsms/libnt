@@ -5,7 +5,6 @@
 #include "../src/atomic_queue.h"
 #include <stddef.h>
 #include <string.h>
-#include <assert.h>
 
 //#include <stdio.h>
 

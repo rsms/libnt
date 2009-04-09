@@ -19,14 +19,14 @@
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
   THE SOFTWARE.
 */
-#include "tcp_socket.h"
+#include "tcp_fd.h"
 #include "util.h"
 #include "mpool.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <netinet/tcp.h>
-
+#include <sys/ioctl.h>
 
 static void _dealloc(nt_tcp_socket *self) {
   nt_tcp_socket_close(self);
@@ -69,8 +69,9 @@ uint16_t nt_tcp_socket_port(nt_tcp_socket *socket) {
 }
 
 
-bool nt_tcp_socket_bind(nt_tcp_socket *self, struct addrinfo *ptr, bool ipv6_only, bool blocking) {
+bool nt_tcp_socket_bind(nt_tcp_socket *self, struct addrinfo *ptr, bool ipv6_only) {
   static const char on = 1;
+  static const int nonblocking = 1;
   
   if ((self->fd = socket(ptr->ai_family, ptr->ai_socktype, ptr->ai_protocol)) < 0) {
     perror("socket() in nt_tcp_socket_bind()");
@@ -83,11 +84,12 @@ bool nt_tcp_socket_bind(nt_tcp_socket *self, struct addrinfo *ptr, bool ipv6_onl
     return false;
   }
   
-  if ( !blocking && setsockopt(self->fd, IPPROTO_TCP, TCP_NODELAY, &on, sizeof(int)) < 0) {
+  /* Disables the Nagle algorithm */
+  /*if ( !blocking && !nt_tcp_socket_setiopt(self, IPPROTO_TCP, TCP_NODELAY, 1)) {
     perror("setsockopt IPPROTO_TCP TCP_NODELAY 1 in nt_tcp_socket_bind()");
     nt_tcp_socket_close(self);
     return false;
-  }
+  }*/
   
   if ( (ptr->ai_family == AF_INET6)
        && ipv6_only
@@ -104,7 +106,7 @@ bool nt_tcp_socket_bind(nt_tcp_socket *self, struct addrinfo *ptr, bool ipv6_onl
     return false;
   }
   
-  if ( !blocking && nt_util_fd_setnonblock(self->fd) == -1) {
+  if (ioctl(self->fd, FIONBIO, &nonblocking) != 0) {
     nt_tcp_socket_close(self);
     return false;
   }
@@ -118,20 +120,9 @@ bool nt_tcp_socket_bind(nt_tcp_socket *self, struct addrinfo *ptr, bool ipv6_onl
 }
 
 
-bool nt_tcp_socket_listen(nt_tcp_socket *self, int backlog) {
-  if (listen(self->fd, backlog) != 0) {
-		perror("listen() in nt_tcp_socket_listen()");
-    return false;
-	}
-  return true;
-}
-
-
-bool nt_tcp_socket_accept(nt_tcp_socket *self, int server_fd) {
-  socklen_t sockaddr_len;
-  
-  sockaddr_len = sizeof(struct sockaddr_storage);
-  self->fd = accept(server_fd, (struct sockaddr *)&self->addr, &sockaddr_len);
+int nt_tcp_fd_accept(int fd, nt_sockaddr_t *sa) {
+  socklen_t sockaddr_len = sizeof(nt_sockaddr_t);
+  self->fd = accept(server_fd, (struct sockaddr *)sa, &sockaddr_len);
   
   if (self->fd == -1) {
     perror("accept() in nt_tcp_socket_accept()");
@@ -140,16 +131,3 @@ bool nt_tcp_socket_accept(nt_tcp_socket *self, int server_fd) {
   
   return true;
 }
-
-
-bool nt_tcp_socket_close(nt_tcp_socket *self) {
-  if (!nt_tcp_socket_is_open(self))
-    return true;
-  if (close(self->fd) == -1) {
-    perror("nt_tcp_socket_close: close() failed");
-    return false;
-  }
-  self->fd = -1;
-  return true;
-}
-

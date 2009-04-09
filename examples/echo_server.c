@@ -2,7 +2,7 @@
  This code is released in the Public Domain (no restrictions, no support
  100% free) by Notion.
 */
-#include "../src/event_base.h"
+#include "../src/runloop.h"
 #include "../src/tcp_server.h"
 #include "../src/tcp_client.h"
 #include "../src/mpool.h"
@@ -15,7 +15,7 @@
 /**
   We call this function when a new client have connected.
 */
-static void on_client_connected(nt_tcp_client *client) {
+static void on_client_connected(nt_tcp_client_t *client) {
   printf("client %p connected from %s on port %d\n", client, 
     nt_tcp_socket_host(client->socket), nt_tcp_socket_port(client->socket));
   // Send a warm welcome
@@ -29,7 +29,7 @@ static void on_client_connected(nt_tcp_client *client) {
   
   In this program we simply send back whetever we received.
 */
-static void on_client_read(struct bufferevent *bev, nt_tcp_client *client) {
+static void on_client_read(struct bufferevent *bev, nt_tcp_client_t *client) {
   /* 
     Simply write the bev->input to the buffer (bev->output), thus echoing
     bev->input back to the client.
@@ -57,7 +57,7 @@ static void on_client_read(struct bufferevent *bev, nt_tcp_client *client) {
   Basically, this function is called when a client is no longer available.
   The cause may be a channel error or a normal disconnect.
 */
-static void on_client_error(struct bufferevent *bev, short what, nt_tcp_client *client) {
+static void on_client_error(struct bufferevent *bev, short what, nt_tcp_client_t *client) {
   if (what & EVBUFFER_EOF)
     printf("client %p disconnected\n", client);
   else
@@ -74,9 +74,13 @@ static void on_client_error(struct bufferevent *bev, short what, nt_tcp_client *
   end up in an never-ending loop (because of nt_event_base).
 */
 static void on_accept(int fd, short ev, nt_event_base_server *bs) {
-  nt_tcp_client *client;
-  if ( (client = nt_tcp_client_accept(bs, fd, &on_client_read, NULL, &on_client_error)) )
+  nt_tcp_client_t *client;
+  if ( (client = nt_tcp_server_accept_client(bs, fd, &on_client_read, NULL, &on_client_error)) ) {
+    /* We disable the Nagle algorithm, sending messages directly */
+    //nt_tcp_socket_setiopt(client->socket, IPPROTO_TCP, TCP_NODELAY, 1);
+    /* And call our on_client_connected function */
     on_client_connected(client);
+  }
   // In a real program, you would proabaly handle a NULL return from
   // nt_tcp_client_accept here.
 }
@@ -90,8 +94,6 @@ int main(int argc, char * const *argv) {
   // Parameters written out for educational purposes
   bool ipv6_enabled = true; // Enable binding to IP v6 addresses
   bool ipv6_only = false;   // Only allow binding to IP v6 addresses
-  bool blocking = false;    // Use blocking I/O (not compatible with the
-                            // nt_event_base method).
   
   // Command line arguments, with default values
   char *addr = "";  // Address to bind to, in human notion
@@ -133,7 +135,7 @@ int main(int argc, char * const *argv) {
   server = nt_tcp_server_new(&on_accept);
   
   // bind
-  if (!nt_tcp_server_bind(server, addr, port, ipv6_enabled, ipv6_only, blocking))
+  if (!nt_tcp_server_bind(server, addr, port, ipv6_enabled, ipv6_only))
     exit(1);
   
   // print some info to stdout

@@ -25,29 +25,24 @@
 #define _NT_EVENT_BASE_H_
 
 #include "obj.h"
-#include "tcp_socket.h"
+#include "tcp_fd.h"
 #include "tcp_server.h"
 #include <event.h>
 
-typedef struct nt_event_base {
+typedef struct nt_runloop {
   NT_OBJ_HEAD
   struct event_base *ev_base;
-} nt_event_base;
-
-typedef struct nt_event_base_server {
-  nt_event_base *base;
-  nt_tcp_server *server;
-} nt_event_base_server;
+} nt_runloop;
 
 /**
-  Create a new nt_event_base
+  Create a new nt_runloop
 */
-nt_event_base *nt_event_base_new();
+nt_runloop *nt_runloop_new();
 
 /**
-  The libevent global/shared event_base
+  The libevent global/shared runloop
 */
-nt_event_base *nt_event_base_default();
+nt_runloop *nt_runloop_default();
 
 /**
   Handle events.
@@ -56,39 +51,39 @@ nt_event_base *nt_event_base_default();
                 until no events exist)
   @return 0 if successful, -1 if an error occurred, or 1 if no events were registered.
 */
-NT_STATIC_INLINE int nt_event_base_loop(nt_event_base *self, int flags) {
+NT_STATIC_INLINE int nt_runloop_run(nt_runloop *self, int flags) {
   return event_base_loop(self->ev_base, flags);
 }
 
 /**
   Exit the event loop after the specified time.
   
-  The next event_base_loop() iteration after the given timer expires will
+  The next runloop_loop() iteration after the given timer expires will
   complete normally (handling all queued events) then exit without
   blocking for events again.
   
-  Subsequent invocations of event_base_loop() will proceed normally.
+  Subsequent invocations of runloop_loop() will proceed normally.
   
   @param timeout  the amount of time after which the loop should terminate or
                   NULL to wait forever.
   @return 0 if successful, or -1 if an error occurred
  */
-NT_STATIC_INLINE int nt_event_base_exit(nt_event_base *self, struct timeval *timeout) {
+NT_STATIC_INLINE int nt_runloop_exit(nt_runloop *self, struct timeval *timeout) {
   return event_base_loopexit(self->ev_base, timeout);
 }
 
 /**
   Abort the active loop immediately.
 
-  nt_event_base_abort() will abort the loop after the next event is completed;
+  nt_runloop_abort() will abort the loop after the next event is completed;
   event_base_loopbreak() is typically invoked from this event's callback.
   This behavior is analogous to the "break;" statement.
 
-  Subsequent invocations of nt_event_base_loop() will proceed normally.
+  Subsequent invocations of nt_runloop_loop() will proceed normally.
 
   @return 0 if successful, or -1 if an error occurred
  */
-NT_STATIC_INLINE int nt_event_base_abort(nt_event_base *self) {
+NT_STATIC_INLINE int nt_runloop_abort(nt_runloop *self) {
   return event_base_loopbreak(self->ev_base);
 }
 
@@ -104,13 +99,13 @@ NT_STATIC_INLINE int nt_event_base_abort(nt_event_base *self) {
   @param  cbarg  argument to pass to @cb
   @return true on success, otherwise false is returned
  */
-bool nt_event_base_add_socket(nt_event_base *self,
-                              nt_tcp_socket *sock,
-                              struct event *ev,
-                              int flags,
-                              const struct timeval *timeout,
-                              void (*cb)(int, short, void *),
-                              void *cbarg);
+bool nt_runloop_add_socket( nt_runloop *self,
+                            nt_tcp_socket *sock,
+                            struct event *ev,
+                            int flags,
+                            const struct timeval *timeout,
+                            void (*cb)(int, short, void *),
+                            void *cbarg);
 
 /**
   Register the server on event base.
@@ -119,7 +114,7 @@ bool nt_event_base_add_socket(nt_event_base *self,
   @param timeout  the maximum amount of time to wait for an accept event, or
                   NULL to wait forever.
 */
-bool nt_event_base_add_server(nt_event_base *self, nt_tcp_server *server, 
-                              const struct timeval *timeout);
+bool nt_runloop_add_server( nt_runloop *self, nt_tcp_server *server, 
+                            const struct timeval *timeout);
 
 #endif

@@ -21,10 +21,10 @@
 */
 #include "tcp_client.h"
 #include "tcp_server.h"
-#include "event_base.h"
+#include "runloop.h"
 #include "mpool.h"
 
-static void _dealloc(nt_tcp_client *self) {
+static void _dealloc(nt_tcp_client_t *self) {
   // free the bufferevent
   bufferevent_free(self->bev);
   
@@ -32,14 +32,14 @@ static void _dealloc(nt_tcp_client *self) {
   nt_xrelease(self->socket);
   
   // finally free ourselves
-  nt_free(self, sizeof(nt_tcp_client));
+  nt_free(self, sizeof(nt_tcp_client_t));
 }
 
 
-nt_tcp_client *nt_tcp_client_new(nt_tcp_socket *socket) {
-  nt_tcp_client *self;
+nt_tcp_client_t *nt_tcp_client_t_new(nt_tcp_socket *socket) {
+  nt_tcp_client_t *self;
   
-  if ( !(self = (nt_tcp_client *)nt_malloc(sizeof(nt_tcp_client))) )
+  if ( !(self = (nt_tcp_client_t *)nt_malloc(sizeof(nt_tcp_client_t))) )
     return NULL;
   
   nt_obj_init((nt_obj *)self, (nt_obj_deallocator *)_dealloc);
@@ -55,7 +55,7 @@ nt_tcp_client *nt_tcp_client_new(nt_tcp_socket *socket) {
 }
 
 
-static void _bev_on_error(struct bufferevent *bev, short what, nt_tcp_client *client) {
+static void _bev_on_error(struct bufferevent *bev, short what, nt_tcp_client_t *client) {
   if (!(what & EVBUFFER_EOF)) {
     warn("client socket error -- disconnecting client\n");
   }
@@ -63,14 +63,14 @@ static void _bev_on_error(struct bufferevent *bev, short what, nt_tcp_client *cl
 }
 
 
-nt_tcp_client *nt_tcp_client_accept(nt_event_base_server *bs,
+nt_tcp_client_t *nt_tcp_client_accept(nt_event_base_server *bs,
                                     int server_fd,
                                     nt_tcp_client_on_read *on_read,
                                     nt_tcp_client_on_write *on_write,
                                     nt_tcp_client_on_error *on_error)
 {
   nt_tcp_socket *sock;
-  nt_tcp_client *client;
+  nt_tcp_client_t *client;
   int evflags;
   
   //af = (bs->server->socket6 && bs->server->socket6->fd == server_fd) ? AF_INET6 : AF_INET;

@@ -25,7 +25,7 @@
 #define _NT_TCP_CLIENT_H_
 
 #include "obj.h"
-#include "tcp_socket.h"
+#include "tcp_fd.h"
 #include <event.h>
 
 struct nt_event_base;
@@ -38,47 +38,42 @@ struct nt_tcp_server;
   
   A client occupies 20 bytes on a 32-bit system and 36-40 bytes on a 64-bit system.
 */
-typedef struct nt_tcp_client {
+typedef struct nt_tcp_client_t {
   NT_OBJ_HEAD
-  
-  /* Connection */
-  nt_tcp_socket *socket;
-  
-  /* Buffer event */
-  struct bufferevent *bev;
-  
-  /* Base and server tuple*/
-  struct nt_event_base_server *bs;
-} nt_tcp_client;
+  int fd; /* Socket */
+  struct sockaddr_storage addr; /* Address */
+  struct nt_event_base_server *bs; /* runloop-server tuple */
+  struct bufferevent *bev; /* Buffer event */
+} nt_tcp_client_t;
 
 
 /**
   Called when there is data for the client to read.
 */
-typedef void (nt_tcp_client_on_read)(struct bufferevent *bev, nt_tcp_client *client);
+typedef void (nt_tcp_client_on_read)(struct bufferevent *bev, nt_tcp_client_t *client);
 
 /**
   Called when the write buffer reaches 0.
 */
-typedef void (nt_tcp_client_on_write)(struct bufferevent *bev, nt_tcp_client *client);
+typedef void (nt_tcp_client_on_write)(struct bufferevent *bev, nt_tcp_client_t *client);
 
 /**
   Called when an error occured.
   This callback is responsible for releasing the client.
 */
-typedef void (nt_tcp_client_on_error)(struct bufferevent *bev, short what, nt_tcp_client *client);
+typedef void (nt_tcp_client_on_error)(struct bufferevent *bev, short what, nt_tcp_client_t *client);
 
 
 /**
-  Create a new nt_tcp_client object
+  Create a new nt_tcp_client_t object
 */
-nt_tcp_client *nt_tcp_client_new(nt_tcp_socket *socket);
+nt_tcp_client_t *nt_tcp_client_new(nt_tcp_socket *socket);
 
 /**
   Accept a new client.
   Returns a new reference.
 */
-nt_tcp_client *nt_tcp_client_accept(struct nt_event_base_server *bs,
+nt_tcp_client_t *nt_tcp_client_accept(struct nt_event_base_server *bs,
                                     int server_fd,
                                     nt_tcp_client_on_read *on_read,
                                     nt_tcp_client_on_write *on_write,
