@@ -1,4 +1,6 @@
 /**
+  File descriptor utilities.
+  
   Copyright (c) 2009 Notion <http://notion.se/>
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -18,28 +20,31 @@
   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
   THE SOFTWARE.
-*/
-#include "sockaddr.h"
-#include <arpa/inet.h>
+**/
+#ifndef _NT_FD_H_
+#define _NT_FD_H_
 
-
-char *nt_sockaddr_hostcpy(const nt_sockaddr_t *sa, char *buf, size_t bufsize) {
-  if (inet_ntop(sa->ss_family,
-                (const void *)&NT_SOCKADDR_M(sa, sin_addr, sin6_addr),
-                buf, bufsize-1) == NULL)
-  {
-    perror("inet_ntop");
-    return NULL;
-  }
-  return buf;
+/**
+  Check if the file @fd is open.
+  
+  @param fd socket.
+  @returns true if the file descriptor seems to be open, otherwise false.
+**/
+NT_STATIC_INLINE bool nt_fd_isopen(int fd) {
+  return (fd != -1);
 }
 
-
-const char *nt_sockaddr_host(const nt_sockaddr_t *sa) {
-  static char *buf[SOCK_MAXADDRLEN+1];
-  buf[0] = '\0';
-  if(nt_sockaddr_hostcpy(sa, (char *)&buf, 100) == NULL) {
-    return NULL;
-  }
-  return (const char *)buf;
+/**
+  Close a file.
+  
+  Sets the value of @fd to -1 after closing it.
+  
+  @param fd pointer to socket.
+**/
+NT_STATIC_INLINE void nt_fd_close(int *fd) {
+  if (close(*fd) != 0)
+    errno = 0;
+  *fd = -1;
 }
+
+#endif

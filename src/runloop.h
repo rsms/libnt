@@ -25,24 +25,24 @@
 #define _NT_EVENT_BASE_H_
 
 #include "obj.h"
-#include "tcp_fd.h"
+#include "fd_tcp.h"
 #include "tcp_server.h"
 #include <event.h>
 
-typedef struct nt_runloop {
+typedef struct nt_runloop_t {
   NT_OBJ_HEAD
   struct event_base *ev_base;
-} nt_runloop;
+} nt_runloop_t;
 
 /**
-  Create a new nt_runloop
+  Create a new nt_runloop_t
 */
-nt_runloop *nt_runloop_new();
+nt_runloop_t *nt_runloop_new();
 
 /**
   The libevent global/shared runloop
 */
-nt_runloop *nt_runloop_default();
+nt_runloop_t *nt_runloop_default();
 
 /**
   Handle events.
@@ -51,7 +51,7 @@ nt_runloop *nt_runloop_default();
                 until no events exist)
   @return 0 if successful, -1 if an error occurred, or 1 if no events were registered.
 */
-NT_STATIC_INLINE int nt_runloop_run(nt_runloop *self, int flags) {
+NT_STATIC_INLINE int nt_runloop_run(nt_runloop_t *self, int flags) {
   return event_base_loop(self->ev_base, flags);
 }
 
@@ -68,7 +68,7 @@ NT_STATIC_INLINE int nt_runloop_run(nt_runloop *self, int flags) {
                   NULL to wait forever.
   @return 0 if successful, or -1 if an error occurred
  */
-NT_STATIC_INLINE int nt_runloop_exit(nt_runloop *self, struct timeval *timeout) {
+NT_STATIC_INLINE int nt_runloop_exit(nt_runloop_t *self, struct timeval *timeout) {
   return event_base_loopexit(self->ev_base, timeout);
 }
 
@@ -83,7 +83,7 @@ NT_STATIC_INLINE int nt_runloop_exit(nt_runloop *self, struct timeval *timeout) 
 
   @return 0 if successful, or -1 if an error occurred
  */
-NT_STATIC_INLINE int nt_runloop_abort(nt_runloop *self) {
+NT_STATIC_INLINE int nt_runloop_abort(nt_runloop_t *self) {
   return event_base_loopbreak(self->ev_base);
 }
 
@@ -99,8 +99,8 @@ NT_STATIC_INLINE int nt_runloop_abort(nt_runloop *self) {
   @param  cbarg  argument to pass to @cb
   @return true on success, otherwise false is returned
  */
-bool nt_runloop_add_socket( nt_runloop *self,
-                            nt_tcp_socket *sock,
+bool nt_runloop_add_socket( nt_runloop_t *self,
+                            int fd,
                             struct event *ev,
                             int flags,
                             const struct timeval *timeout,
@@ -114,7 +114,7 @@ bool nt_runloop_add_socket( nt_runloop *self,
   @param timeout  the maximum amount of time to wait for an accept event, or
                   NULL to wait forever.
 */
-bool nt_runloop_add_server( nt_runloop *self, nt_tcp_server *server, 
+bool nt_runloop_add_server( nt_runloop_t *self, nt_tcp_server *server, 
                             const struct timeval *timeout);
 
 #endif

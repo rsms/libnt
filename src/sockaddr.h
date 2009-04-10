@@ -32,17 +32,17 @@ typedef struct sockaddr_storage nt_sockaddr_t;
 /* Read member without knowing the family */
 #define NT_SOCKADDR_M(ss, member4, member6) \
   ((ss->ss_family == AF_INET) ? ( \
-    ((const struct sockaddr_in *)ss)->member4; \
+    ((const struct sockaddr_in *)ss)->member4 \
   ) : ( \
-    ((const struct sockaddr_in6 *)ss)->member6; \
+    ((const struct sockaddr_in6 *)ss)->member6 \
   ))
 
 // Return a human readable string representing the hostname.
 // This is not thread safe (See nt_sockaddr_hostcpy() for a thread safe version).
-const char *nt_sockaddr_host(const nt_sockaddr_t *addr);
+const char *nt_sockaddr_host(const nt_sockaddr_t *sa);
 
 // Copy a human readable string representing the hostname.
-char *nt_sockaddr_hostcpy(const nt_sockaddr_t *addr, char *buf, size_t bufsize);
+char *nt_sockaddr_hostcpy(const nt_sockaddr_t *sa, char *buf, size_t bufsize);
 
 // Port of socket address, in host byte order.
 NT_STATIC_INLINE uint16_t nt_sockaddr_port(const nt_sockaddr_t *sa) {
@@ -50,9 +50,9 @@ NT_STATIC_INLINE uint16_t nt_sockaddr_port(const nt_sockaddr_t *sa) {
 }
 
 // Return the socket address family (e.g. AF_INET, AF_INET6)
-NT_STATIC_INLINE sa_family_t nt_sockaddr_family(const nt_sockaddr_t *sockaddr) {
+NT_STATIC_INLINE sa_family_t nt_sockaddr_family(const nt_sockaddr_t *sa) {
   /* the family is the first member of struct sockaddr */
-  return (sa_family_t)( *((sa_family_t *)(&addr)) );
+  return sa->ss_family;
 }
 
 #endif

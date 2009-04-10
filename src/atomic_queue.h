@@ -74,7 +74,7 @@ typedef volatile struct {
   @param offset offset in bytes to the link pointer of @elem. Usually
                 offsetof(my_struct, link_member).
 */
-extern void nt_atomic_enqueue(nt_atomic_queue *queue, void *elem, size_t offset) NT_ATTR(nonnull(1,2));
+extern void nt_atomic_enqueue(nt_atomic_queue *queue, void *elem, size_t offset) NT_ATTR((nonnull(1,2)));
 
 /**
   Dequeue (pop) the first (top/next) element from a @queue.
@@ -84,7 +84,7 @@ extern void nt_atomic_enqueue(nt_atomic_queue *queue, void *elem, size_t offset)
                 offsetof(my_struct, link_member).
   @returns pointer to a dequeued element or NULL if the queue is empty.
 */
-extern void *nt_atomic_dequeue(nt_atomic_queue *queue, size_t offset) NT_ATTR(nonnull(1));
+extern void *nt_atomic_dequeue(nt_atomic_queue *queue, size_t offset) NT_ATTR((nonnull(1)));
 
 /**
   CAS-version of nt_atomic_dequeue.
@@ -100,7 +100,7 @@ extern void *nt_atomic_dequeue(nt_atomic_queue *queue, size_t offset) NT_ATTR(no
                 is returned.
   @returns pointer to a dequeued element or NULL if the queue is empty.
 */
-extern void *nt_atomic_dequeue_ifnexteq(nt_atomic_queue *queue, size_t offset, void *cmpptr) NT_ATTR(nonnull(1,3));
+extern void *nt_atomic_dequeue_ifnexteq(nt_atomic_queue *queue, size_t offset, void *cmpptr) NT_ATTR((nonnull(1,3)));
 
 
 #ifndef NT_HAVE_CONSTRUCTOR

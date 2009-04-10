@@ -20,93 +20,66 @@
   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
   THE SOFTWARE.
-*/
+**/
 #ifndef _NT_TCP_SERVER_H_
 #define _NT_TCP_SERVER_H_
 
 #include "obj.h"
-#include "util.h"
-#include "tcp_fd.h"
-
+#include "sockaddr.h"
 #include <stdbool.h>
 #include <stdint.h>
 #include <event.h>
 
 /**
-  Maximum number of accept events.
-  
-  Each call to nt_tcp_server_register() adds <number of bound interfaces> to 
-  v_accept_evs -- if the number of accept events reach 
-  NT_TCP_SERVER_MAX_ACCEPT_EVS, calls to nt_tcp_server_register() will fail.
-  
-  Normally you need no more than
-  (<number of processors> * <number of bound interfaces>) accept events.
-*/
-#define NT_TCP_SERVER_MAX_ACCEPT_EVS 32
-
-struct nt_event_base;
-struct nt_event_base_server;
-struct nt_tcp_server;
-
-/**
   Callback for when a client connection is pending an accept() call.
 */
-typedef void (nt_tcp_server_on_accept)(int fd, short ev, struct nt_event_base_server *bs);
+typedef void (*nt_tcp_server_on_accept_t)(int fd, short ev, struct nt_tuple_t *bs);
 
 /**
-  nt_tcp_server object.
+  nt_tcp_server_t object.
 */
-typedef struct nt_tcp_server {
+typedef struct nt_tcp_server_t {
   NT_OBJ_HEAD
   
   /* Listening sockets */
-  nt_tcp_socket *socket4;
-  nt_tcp_socket *socket6;
+  struct socket4 {
+    int fd;
+    nt_sockaddr_t addr;
+  } socket4;
+  struct socket6 {
+    int fd;
+    nt_sockaddr_t addr;
+  } socket6;
   
   /* Callbacks */
-  nt_tcp_server_on_accept *on_accept;
+  nt_tcp_server_on_accept_t on_accept;
   
   /* Internal use only */
   volatile int32_t n_accept_evs;
   struct event *v_accept_evs[NT_TCP_SERVER_MAX_ACCEPT_EVS];
   volatile int32_t n_bs;
   struct nt_event_base_server *v_bs[NT_TCP_SERVER_MAX_ACCEPT_EVS];
-} nt_tcp_server;
+} nt_tcp_server_t;
 
 /**
-  Create a new nt_tcp_server
+  Create a new nt_tcp_server_t
   
   @param  on_accept  accept handler
 */
-nt_tcp_server *nt_tcp_server_new(nt_tcp_server_on_accept *on_accept);
+nt_tcp_server_t *nt_tcp_server_new(nt_tcp_server_on_accept_t on_accept);
 
 /**
-  Bind server to address and port
+  Bind server to address and port.
+  
+  @param server Server
+  @param addr   Address
+  @param port   Port number
+  @param proto  Set to 0 to bind to both IPv4 and IPv6 addresses.
+                Set to IPPROTO_IPV4 to only bind to IPv4 addresses.
+                Set to IPPROTO_IPV6 to bind to only IPv6 addresses.
+  @returns boolean success
 */
-bool nt_tcp_server_bind(nt_tcp_server *server, const char *addr, short port,
-                        bool ipv6_enabled, bool ipv6_only);
-
-/**
-  Runs the servers loop. Possible flags:
-    EVLOOP_NONBLOCK -- do not block/wait
-    EVLOOP_ONESHOT  -- block *once* only
-*/
-//#define nt_tcp_server_run(server, int_flags) ev_loop((server)->loop, int_flags)
-
-/**
-  Return the IPv6 or IPv4 address in a human readable format (not thread safe).
-*/
-const char *nt_tcp_server_host(nt_tcp_server *server);
-
-/**
-  Copy a human readable string representing the host address of server (in v6 or v4 format).
-*/
-char *nt_tcp_server_hostcpy(nt_tcp_server *server, char *buf, size_t bufsize);
-
-/**
-  Port of server socket in host byte order (a normal integer)
-*/
-uint16_t nt_tcp_server_port(nt_tcp_server *server);
+bool nt_tcp_server_bind(nt_tcp_server_t *server, const char *addr, int port, int proto);
 
 
 #endif

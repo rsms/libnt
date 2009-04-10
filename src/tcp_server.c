@@ -18,21 +18,15 @@
   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
   THE SOFTWARE.
-*/
+**/
 #include "tcp_server.h"
-#include "runloop.h" /* for the size of nt_event_base_server */
-#include "mpool.h"
-
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
+#include "fd_tcp.h"
 #include <netinet/in.h>
 #include <netdb.h>
+#include <sys/socket.h>
 
-#include <err.h> /* warnx() */
 
-
-static void _dealloc(nt_tcp_server *self) {
+static void _dealloc(nt_tcp_server_t *self) {
   size_t i;
   struct event *ev;
   
@@ -50,27 +44,25 @@ static void _dealloc(nt_tcp_server *self) {
     nt_free(self->v_bs[i], sizeof(nt_event_base_server));
   }
   
-  // release sockets
-  nt_xrelease(self->socket4);
-  nt_xrelease(self->socket6);
-  
   // finally free ourselves
-  nt_free(self, sizeof(nt_tcp_server));
+  nt_free(self, sizeof(nt_tcp_server_t));
 }
 
 
-nt_tcp_server *nt_tcp_server_new(nt_tcp_server_on_accept *on_accept) {
+nt_tcp_server_t *nt_tcp_server_new(nt_tcp_server_on_accept_t on_accept) {
   int i;
-  nt_tcp_server *self;
+  nt_tcp_server_t *self;
   
-  if ( !(self = (nt_tcp_server *)nt_malloc(sizeof(nt_tcp_server))) )
+  if ( !(self = (nt_tcp_server_t *)nt_malloc(sizeof(nt_tcp_server_t))) )
     return NULL;
   
   nt_obj_init((nt_obj *)self, (nt_obj_deallocator *)_dealloc);
   
   // Listening sockets
-  self->socket4 = NULL;
-  self->socket6 = NULL;
+  self->socket4.fd = -1;
+  memset(&self->socket4.addr, 0, sizeof(nt_sockaddr_t));
+  self->socket6.fd = -1;
+  memset(&self->socket6.addr, 0, sizeof(nt_sockaddr_t));
   
   // Callbacks
   self->on_accept = on_accept;
@@ -91,25 +83,35 @@ nt_tcp_server *nt_tcp_server_new(nt_tcp_server_on_accept *on_accept) {
 }
 
 
-bool nt_tcp_server_bind(nt_tcp_server *server, const char *addr, short port, 
-                        bool ipv6_enabled, bool ipv6_only)
-{
-  struct addrinfo hints, *servinfo, *ptr;
-  int rv;
-  bool rb;
-  char strport[12];
-  
-  // Check if on_accept is set
-  if (server->on_accept == NULL) {
-    warnx("nt_tcp_server_bind: server->on_accept is NULL");
+NT_INLINE_STATIC bool _bind_and_listen(int *fd, const struct sockaddr *sa, bool ipv6) {
+  if ((*fd = nt_fd_tcp_socket(ipv6)) == -1) {
+    perror("socket");
     return false;
   }
+  if (nt_fd_tcp_bind(*fd, (const nt_sockaddr_t *)sa) != 0) {
+    perror("bind");
+    return false;
+  }
+  nt_fd_tcp_listen(*fd, SOMAXCONN);
+  return true;
+}
+
+
+bool nt_tcp_server_bind(nt_tcp_server_t *server, const char *addr, int port, int proto) {
+  struct addrinfo hints, *servinfo, *ai;
+  int rv;
+  char strport[12];
+  
+  assert(server->on_accept != NULL);
+  assert(server->socket4.fd == -1);
+  assert(server->socket6.fd == -1);
   
   // Setup getaddrinfo hints
-  memset(&hints, 0, sizeof hints);
-  hints.ai_family = AF_UNSPEC;
+  memset(&hints, 0, sizeof(hints));
+  hints.ai_flags = AI_PASSIVE; // AI_CANONNAME also ?
+  hints.ai_family = PF_INET;
   hints.ai_socktype = SOCK_STREAM;
-  hints.ai_flags = AI_PASSIVE; // use my IP
+  hints.ai_protocol = proto;
   
   // getaddrinfo
   snprintf(strport, sizeof(strport), "%d", port);
@@ -119,60 +121,22 @@ bool nt_tcp_server_bind(nt_tcp_server *server, const char *addr, short port,
     return false;
   }
   
-  // loop through all the results and bind to the first we can
-  for(ptr = servinfo; ptr; ptr = ptr->ai_next) {
-    if (ptr->ai_family == AF_INET6) {
-      // v6
-      if (ipv6_enabled) {
-        if (server->socket6 == NULL)
-          server->socket6 = nt_tcp_socket_new();
-        rb = nt_tcp_socket_bind(server->socket6, ptr, ipv6_only);
-        rb = rb && nt_tcp_socket_listen(server->socket6, SOMAXCONN);
-        if (!rb) {
-          freeaddrinfo(servinfo);
-          return false;
-        }
-      }
+  // loop through all the results and bind to the first found addr per af
+  for ( ai = servinfo; ai; ai = ai->ai_next ) {
+    if (ai->ai_protocol == IPPROTO_IPV6) {
+      if (!_bind_and_listen(&server->socket6, ai->ai_addr, true))
+        break;
     }
-    else if(!ipv6_only) {
-      // v4
-      if (server->socket4 == NULL)
-        server->socket4 = nt_tcp_socket_new();
-      rb = nt_tcp_socket_bind(server->socket4, ptr, false);
-      rb = rb && nt_tcp_socket_listen(server->socket4, SOMAXCONN);
-      if (!rb) {
-        freeaddrinfo(servinfo);
-        return false;
-      }
+    else if (ai->ai_protocol == IPPROTO_IPV6) {
+      if (!_bind_and_listen(&server->socket4, (const nt_sockaddr_t *)ai->ai_addr, false))
+        break;
+    }
+    else {
+      log_debug("unknown protocol %d", ai->ai_protocol);
     }
   }
   
   freeaddrinfo(servinfo);
   
-  return (server->socket4 || server->socket6);
-}
-
-
-const char *nt_tcp_server_host(nt_tcp_server *server) {
-  if (server->socket6)
-    return nt_tcp_socket_host(server->socket6);
-  else if (server->socket4)
-    return nt_tcp_socket_host(server->socket4);
-  return NULL;
-}
-
-char *nt_tcp_server_hostcpy(nt_tcp_server *server, char *buf, size_t bufsize) {
-  if (server->socket6)
-    return nt_tcp_socket_hostcpy(server->socket6, buf, bufsize);
-  else if (server->socket4)
-    return nt_tcp_socket_hostcpy(server->socket4, buf, bufsize);
-  return NULL;
-}
-
-uint16_t nt_tcp_server_port(nt_tcp_server *server) {
-  if (server->socket6)
-    return nt_tcp_socket_port(server->socket6);
-  else if (server->socket4)
-    return nt_tcp_socket_port(server->socket4);
-  return 0;
+  return (server->socket4 != -1 || server->socket6 != -1);
 }

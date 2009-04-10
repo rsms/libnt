@@ -495,6 +495,17 @@ NT_STATIC_INLINE void *nt_calloc(size_t count, size_t size) {
 }
 
 /**
+  Resize memory for @oldptr.
+  
+  @param n number of elements to allocate.
+  @param sz number of bytes per element being allocated.
+*/
+NT_STATIC_INLINE void *nt_realloc(void *oldptr, size_t oldsz, size_t newsz) {
+  return nt_mpool_resize(nt_mpool_shared, oldptr, oldsz, newsz,
+                         &nt_mpool_shared_errno);
+}
+
+/**
   Free memory.
   
   If the pool have not been initialized, this implies a normal free().

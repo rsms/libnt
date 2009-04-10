@@ -2,15 +2,16 @@
 
 LIB_S_SRCS =  src/atomic_queue_asmimpl.s
 LIB_C_SRCS =  src/util.c src/machine.c \
+              src/buffer.c \
               src/mpool.c \
-              src/atomic_queue.c \
-              src/runloop.c \
-              src/tcp_fd.c src/tcp_server.c src/tcp_client.c
+              src/atomic_queue.c
+              #src/runloop.c \
+              #src/tcp_fd.c src/tcp_server.c src/tcp_client.c
 LIB_S_OBJS = ${LIB_S_SRCS:.s=.o}
 LIB_C_OBJS = ${LIB_C_SRCS:.c=.o}
 LIB_OBJS=${LIB_S_OBJS} ${LIB_C_OBJS}
 
-TESTS = refcount mpool atomic_queue
+TESTS = refcount mpool atomic_queue test_buffer test_array
 TEST_SRCS = $(foreach n,$(TESTS),tests/$(n).c)
 TEST_OBJS = ${TEST_SRCS:.c=.o}
 

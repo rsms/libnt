@@ -21,23 +21,24 @@
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
   THE SOFTWARE.
 **/
-#ifndef _NT_TCP_FD_H_
-#define _NT_TCP_FD_H_
+#ifndef _NT_FD_TCP_H_
+#define _NT_FD_TCP_H_
 
+#include "fd.h" /* nt_fd_close() etc */
 #include "sockaddr.h"
-#include <errno.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
+
+int nt_fd_tcp_socket(bool ipv6);
 
 /**
   Bind socket @fd to address @sa.
   
   @param fd socket.
   @param sa address.
-  @param ipv6_only only bind to IPv6 sockets.
-  @returns boolean success
+  @returns see documentation of bind()
 **/
-bool nt_tcp_fd_bind(int fd, const nt_sockaddr_t *sa, bool ipv6_only);
+int nt_fd_tcp_bind(int fd, const nt_sockaddr_t *sa);
 
 /**
   Enable listening.
@@ -46,7 +47,7 @@ bool nt_tcp_fd_bind(int fd, const nt_sockaddr_t *sa, bool ipv6_only);
   @param backlog listen queue size.
   @returns boolean success
 **/
-NT_STATIC_INLINE void nt_tcp_fd_listen(int fd, int backlog) {
+NT_STATIC_INLINE void nt_fd_tcp_listen(int fd, int backlog) {
   AZ(listen(fd, backlog));
 }
 
@@ -57,19 +58,9 @@ NT_STATIC_INLINE void nt_tcp_fd_listen(int fd, int backlog) {
   @param sa a value-return parameter which is the client address.
   @returns open client socket on success or -1 on failure.
 **/
-int nt_tcp_fd_accept(int fd, nt_sockaddr_t *sa);
+int nt_fd_tcp_accept(int fd, nt_sockaddr_t *sa);
 
-/**
-  Check if the socket @fd is open.
-  
-  @param fd socket.
-  @returns true if the file descriptor seems to be open, otherwise false.
-**/
-NT_STATIC_INLINE bool nt_tcp_fd_isopen(int fd) {
-  return (fd != -1);
-}
-
-NT_STATIC_INLINE void nt_tcp_fd_setblocking(int fd, bool blocking) {
+NT_STATIC_INLINE void nt_fd_tcp_setblocking(int fd, bool blocking) {
   blocking = !blocking;
 	AZ(ioctl(fd, FIONBIO, (int *)&blocking));
 }
@@ -82,7 +73,7 @@ NT_STATIC_INLINE void nt_tcp_fd_setblocking(int fd, bool blocking) {
   @param option the option to retrieve.
   @param value value-return parameter
 **/
-NT_STATIC_INLINE void nt_tcp_fd_getiopt(int fd, int level, int option, int *value) {
+NT_STATIC_INLINE void nt_fd_tcp_getiopt(int fd, int level, int option, int *value) {
   socklen_t vsz = 0;
   AZ(getsockopt(fd, level, option, (void *restrict)&value, &vsz));
 }
@@ -95,21 +86,9 @@ NT_STATIC_INLINE void nt_tcp_fd_getiopt(int fd, int level, int option, int *valu
   @param option the option to set.
   @param value the value
 **/
-NT_STATIC_INLINE void nt_tcp_fd_setiopt(int fd, int level, int option, int value) {
+NT_STATIC_INLINE void nt_fd_tcp_setiopt(int fd, int level, int option, int value) {
   AZ(setsockopt(fd, level, option, (const void *)&value, (socklen_t)sizeof(int)));
 }
 
-/**
-  Close a socket.
-  
-  Sets the value of @fd to -1 after closing it.
-  
-  @param fd pointer to socket.
-**/
-NT_STATIC_INLINE void nt_tcp_fd_close(int *fd) {
-  if (close(*fd) != 0)
-    errno = 0;
-  *fd = -1;
-}
 
 #endif
