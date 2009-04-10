@@ -24,30 +24,20 @@
 #include <stdarg.h>
 
 
-static void _dealloc(nt_buffer_t *self) {
-  if (self->start && nt_buffer_size(self)) {
-    nt_free(self->start, nt_buffer_size(self));
-  }
-  nt_free(self, sizeof(nt_buffer_t));
-}
-
-
-nt_buffer_t *nt_buffer_new(size_t size, size_t growextra) {
-  nt_buffer_t *self;
-  if ((self = (nt_buffer_t *)nt_malloc(sizeof(nt_buffer_t))) == NULL)
-    return NULL;
-  nt_obj_init((nt_obj *)self, (nt_obj_deallocator *)_dealloc);
-	if (size == 0)
+NT_OBJ(nt_buffer_t, nt_buffer_new(size_t size, size_t growextra), {
+  if (size == 0)
 	  size = growextra;
 	if ( (self->start = (byte_t *)nt_malloc(size)) == NULL ) {
-    return NULL; /* ENOMEM */
+    return NULL; // ENOMEM
   }
 	self->end = self->start + size;
 	self->ptr = self->start;
   self->growextra = growextra;
-  
-	return self;
-}
+},{
+  if (self->start && nt_buffer_size(self)) {
+    nt_free(self->start, nt_buffer_size(self));
+  }
+})
 
 
 bool nt_buffer_grow(nt_buffer_t *self, size_t length) {

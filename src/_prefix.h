@@ -17,7 +17,6 @@
   #define NT_STATIC_PURE_INLINE   static __inline__ __attribute__((always_inline, pure))
   #define NT_EXPECT(cond, expect) __builtin_expect(cond, expect)
   #define NT_ATTR(expr)      __attribute__(expr)
-  /*((format (printf, 2, 3)));*/
   #if (__GNUC__ >= 4) && !defined(__objc__)
     /* Not yet implemented for obj-c in GCC */
     #define NT_HAVE_CONSTRUCTOR   1

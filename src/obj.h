@@ -110,15 +110,76 @@ NT_STATIC_INLINE void nt_obj_init(nt_obj *obj, nt_obj_deallocator *deallocator) 
 }
 
 /**
-  Fast (and non-thread safe) version of nt_obj_init
+  Faster (but non-thread safe) version of nt_obj_init
   
   @obj: object in question.
  */
-#define NT_OBJ_INIT(obj, deallocator) \
+#define NT_OBJ_INIT(obj, _deallocator) \
   do { \
-    obj->refcount = 1; \
-    obj->deallocator = deallocator; \
-  } while(0);
+    ((nt_obj *)(obj))->refcount = 1; \
+    ((nt_obj *)(obj))->deallocator = (volatile nt_obj_deallocator *)_deallocator; \
+  } while(0)
+
+/**
+  Cenvenience macro for defining, allocating and initializing an object.
+  Should be used in your objects constructor.
+  
+  Example:
+  
+    typedef struct myobj_t {
+      NT_OBJ_HEAD
+      int mymember;
+    } myobj_t;
+    
+    static void _dealloc(myobj_t *o) {
+      nt_free(o, sizeof(myobj_t));
+    }
+    
+    myobj_t *myobj_new() {
+      NT_OBJ_ALLOC_INIT_self(myobj_t, _dealloc);
+      self->mymember = 123;
+      return self;
+    }
+*/
+#define NT_OBJ_ALLOC_INIT_self(T, deallocator) \
+  T *self; \
+  do { \
+    if ((self = (T *)nt_malloc(sizeof(T))) == NULL) { \
+      return NULL; \
+    } \
+    NT_OBJ_INIT((nt_obj *)self, (nt_obj_deallocator *)(deallocator)); \
+  } while(0)
+
+
+/**
+  Helper for defining constructor and destructor.
+  
+  Example:
+  
+    typedef struct myobj_t {
+      NT_OBJ_HEAD
+      char *mymember;
+    } myobj_t;
+  
+    NT_OBJ( myobj_t, myobj_new(const char myarg), {
+      // constructor
+      strcpy(self->mymember, myarg);
+    },{
+      // destructor
+      free(self->mymember);
+    })
+**/
+#define NT_OBJ(T, constructorproto, initblock, deallocblock) \
+  static void _dealloc_ ##T(T *self) { \
+    deallocblock \
+    nt_free(self, sizeof(T)); \
+  } \
+  T * constructorproto { \
+    NT_OBJ_ALLOC_INIT_self(T, &_dealloc_ ##T); \
+    initblock \
+    return self; \
+  }
+
 
 /**
  * nt_obj_get - increment refcount for object.
