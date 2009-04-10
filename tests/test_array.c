@@ -2,7 +2,7 @@
  This code is released in the Public Domain (no restrictions, no support
  100% free) by Notion.
 */
-#include "../src/buffer.h"
+#include "../src/array.h"
 
 int main (int argc, char const *argv[]) {
   nt_array_t *a, *b;

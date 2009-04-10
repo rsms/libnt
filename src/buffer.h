@@ -26,8 +26,6 @@
 
 #include "obj.h"
 
-#define NT_ALIGN(value, size) (((value)+(size)-1)&~((size)-1))
-
 #define NT_BUFFER_GROWSIZE 0x8000
 #define NT_BUFFER_GROW_MAX 0x1000000
 
@@ -52,21 +50,6 @@ bool nt_buffer_appendb(nt_buffer_t *self, byte_t b);
 #define nt_buffer_appendc(self, c) nt_buffer_appendb(self, (byte_t)c)
 bool nt_buffer_appendf(nt_buffer_t *self, const char *fmt, ...) NT_ATTR((format(printf, 2, 3)));
 #define nt_buffer_appends(buf, what) nt_buffer_append((buf), (const byte_t *)(what), strlen(what))
-
-
-/* array interface modeled on top of buffer */
-typedef nt_buffer_t nt_array_t;
-
-#define TZ sizeof(void*)
-#define nt_array_new(capacity, growextra) nt_buffer_new((capacity)*TZ, (growextra)*TZ)
-#define nt_array_size(self)       ((self)->end - (self)->start)
-#define nt_array_length(self)     ((self)->ptr - (self)->start)
-#define nt_array_available(self)  (((self)->end - (self)->ptr) / TZ)
-
-#define nt_array_push(self, v)    nt_buffer_append(self, (byte_t *)((void **)&(v)), TZ)
-#define nt_array_get(self, i)     *((void **)((self)->start + (TZ * (i))))
-#define nt_array_set(self, i, v) \
-  memcpy(((void **)((self)->start + (TZ * (i)))), (void **)&(v), TZ)
 
 
 #endif
