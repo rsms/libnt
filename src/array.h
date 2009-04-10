@@ -28,16 +28,23 @@
 
 typedef nt_buffer_t nt_array_t;
 
-#define TZ sizeof(void*)
-#define nt_array_new(capacity, growextra) nt_buffer_new((capacity)*TZ, (growextra)*TZ)
-#define nt_array_size(self)       ((self)->end - (self)->start)
-#define nt_array_length(self)     ((self)->ptr - (self)->start)
-#define nt_array_available(self)  (((self)->end - (self)->ptr) / TZ)
+#define nt_array_new(capacity, growextra) \
+  nt_buffer_new((capacity)*sizeof(void*), (growextra)*sizeof(void*))
 
-#define nt_array_push(self, v)    nt_buffer_append(self, (byte_t *)((void **)&(v)), TZ)
-#define nt_array_get(self, i)     *((void **)((self)->start + (TZ * (i))))
+#define nt_array_size(self)       ((self)->end - (self)->start)
+
+#define nt_array_length(self)     ((self)->ptr - (self)->start)
+
+#define nt_array_available(self)  (((self)->end - (self)->ptr) / sizeof(void*))
+
+#define nt_array_push(self, v) \
+  nt_buffer_append(self, (byte_t *)((void **)&(v)), sizeof(void*))
+
+#define nt_array_get(self, i) \
+  *((void **)((self)->start + (sizeof(void*) * (i))))
+
 #define nt_array_set(self, i, v) \
-  memcpy(((void **)((self)->start + (TZ * (i)))), (void **)&(v), TZ)
+  memcpy(((void **)((self)->start + (sizeof(void*) * (i)))), (void **)&(v), sizeof(void*))
 
 
 #endif
