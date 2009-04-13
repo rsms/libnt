@@ -27,6 +27,9 @@
 NT_OBJ(nt_buffer_t, nt_buffer_new(size_t size, size_t growextra), {
   if (size == 0)
 	  size = growextra;
+	if (size == 0)
+    size = 1;
+  size = NT_ALIGN_M(size); // min size is machine alignment
 	if ( (self->start = (byte_t *)nt_malloc(size)) == NULL ) {
     return NULL; // ENOMEM
   }
@@ -63,9 +66,7 @@ bool nt_buffer_grow(nt_buffer_t *self, size_t length) {
 	#endif
 	
 	if ((new_start = nt_realloc(self->start, nt_buffer_size(self), new_size)) == NULL)
-	{
     err(1, NULL);
-  }
   
 	self->ptr = new_start + nt_buffer_occupied(self);
 	self->start = new_start;
