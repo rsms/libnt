@@ -38,13 +38,13 @@ int main (int argc, char const *argv[]) {
   assert(nt_array_get(a, 2) == b);
   assert(nt_array_get(a, 3) == b);
   
-  fprintf(stderr, "\nA => %p\n", a);
-  fprintf(stderr, "B => %p\n", b);
-  fprintf(stderr, "C => %p\n", c);
+  printf("\nA => %p\n", a);
+  printf("B => %p\n", b);
+  printf("C => %p\n", c);
   #define C(p) ((void *)p==a?'A':((void *)p==(void *)b?'B':((void *)p==(void *)c?'C':'-'))), p
-  #define P(i,p) fprintf(stderr, "%d => %c  %p\n", i, C(p));
+  #define P(i,p) printf("%d => %c  %p\n", i, C(p));
   
-  putc('\n', stderr);
+  putc('\n', stdout);
   P(0,nt_array_get(a, 0));
   P(1, nt_array_get(a, 1));
   P(2, nt_array_get(a, 2));
@@ -53,7 +53,7 @@ int main (int argc, char const *argv[]) {
   #define Z sizeof(void*)
   size_t i = 1;
   nt_array_t *self = a;
-  putc('\n', stderr);
+  putc('\n', stdout);
   void **pp = ((void **)((self)->start + (Z * (i))));
   P(0, *pp);
   
@@ -62,7 +62,7 @@ int main (int argc, char const *argv[]) {
   nt_array_set(self, 1, b);
   assert(nt_array_get(a, 1) == b);
   
-  putc('\n', stderr);
+  putc('\n', stdout);
   P(0,nt_array_get(a, 0));
   P(1, nt_array_get(a, 1));
   P(2, nt_array_get(a, 2));
