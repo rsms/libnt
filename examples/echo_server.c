@@ -41,6 +41,7 @@ static void on_client_read(struct bufferevent *bev, nt_tcp_client_t *client) {
     bev->input back to the client.
   */
   nt_tcp_client_writebuf(client, bev->input);
+  //nt_tcp_client_close(client);
   /*
     The above line is roughly equivalent to this code:
     
