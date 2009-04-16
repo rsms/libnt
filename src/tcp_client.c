@@ -21,41 +21,61 @@
 */
 #include "tcp_client.h"
 #include "tcp_server.h"
+#include "fd.h"
+#include "fd_tcp.h"
 #include "runloop.h"
 #include "mpool.h"
 
+
 static void _dealloc(nt_tcp_client_t *self) {
-  // free the bufferevent
-  bufferevent_free(self->bev);
-  
-  // release socket. implies closing any connection
-  nt_xrelease(self->socket);
-  
-  // finally free ourselves
+  nt_tcp_client_close(self);
+  if (self->bev.input)
+    nt_free(self->bev.input, sizeof(struct evbuffer));
+  if (self->bev.output)
+    nt_free(self->bev.output, sizeof(struct evbuffer));
   nt_free(self, sizeof(nt_tcp_client_t));
 }
 
 
-nt_tcp_client_t *nt_tcp_client_t_new(nt_tcp_socket *socket) {
-  nt_tcp_client_t *self;
+nt_tcp_client_t *nt_tcp_client_new() {
+  NT_OBJ_ALLOC_INIT_self(nt_tcp_client_t, &_dealloc);
+  NT_OBJ_CLEAR(self, nt_tcp_client_t);
   
-  if ( !(self = (nt_tcp_client_t *)nt_malloc(sizeof(nt_tcp_client_t))) )
+  self->fd = -1;
+  self->bev.input = nt_calloc(1, sizeof(struct evbuffer));
+  if ( !self->bev.input || !(self->bev.output = nt_calloc(1, sizeof(struct evbuffer))) ) {
+    nt_release(self);
     return NULL;
-  
-  nt_obj_init((nt_obj *)self, (nt_obj_deallocator *)_dealloc);
-  
-  // Socket
-  nt_xretain(socket);
-  self->socket = socket;
-  
-  self->bev = NULL;
-  self->bs = NULL;
-  
+  }
+  /*
+	 * Set to EV_WRITE so that using bufferevent_write is going to
+	 * trigger a callback.  Reading needs to be explicitly enabled
+	 * because otherwise no data will be available.
+	 */
+	self->bev.enabled = EV_WRITE;
+	
   return self;
 }
 
 
-static void _bev_on_error(struct bufferevent *bev, short what, nt_tcp_client_t *client) {
+void nt_tcp_client_setfd(nt_tcp_client_t *self, int fd) {
+  self->fd = fd;
+  // might need to event_set first, with dummy values since bufferevent_setfd
+  // performs event_del which might fail in future versions.
+  bufferevent_setfd(&self->bev, self->fd);
+}
+
+
+void nt_tcp_client_setrs(nt_tcp_client_t *self, nt_tcp_server_runloop_t *rs) {
+  self->rs = rs;
+  // Set base if needed
+  if (self->rs->runloop)
+    AZ(bufferevent_base_set(self->rs->runloop->ev_base, &self->bev));
+}
+
+
+NT_STATIC_INLINE
+void _default_errorcb(struct bufferevent *bev, short what, nt_tcp_client_t *client) {
   if (!(what & EVBUFFER_EOF)) {
     warn("client socket error -- disconnecting client\n");
   }
@@ -63,87 +83,44 @@ static void _bev_on_error(struct bufferevent *bev, short what, nt_tcp_client_t *
 }
 
 
-nt_tcp_client_t *nt_tcp_client_accept(nt_event_base_server *bs,
-                                    int server_fd,
-                                    nt_tcp_client_on_read *on_read,
-                                    nt_tcp_client_on_write *on_write,
-                                    nt_tcp_client_on_error *on_error)
+void nt_tcp_client_setcb( nt_tcp_client_t *self,
+                          nt_tcp_client_readcb_t readcb,
+                          nt_tcp_client_writecb_t writecb,
+                          nt_tcp_client_errorcb_t errorcb)
 {
-  nt_tcp_socket *sock;
+  if (errorcb == NULL)
+    errorcb = &_default_errorcb;
+	bufferevent_setcb(&self->bev,
+	  (evbuffercb)readcb, (evbuffercb)writecb, (everrorcb)errorcb,
+	  (void *)self);
+}
+
+
+nt_tcp_client_t *nt_tcp_client_accept(nt_tcp_server_runloop_t *rs,
+                                      int fd,
+                                      nt_tcp_client_readcb_t readcb,
+                                      nt_tcp_client_writecb_t writecb,
+                                      nt_tcp_client_errorcb_t errorcb)
+{
   nt_tcp_client_t *client;
-  int evflags;
   
-  //af = (bs->server->socket6 && bs->server->socket6->fd == server_fd) ? AF_INET6 : AF_INET;
+  client = nt_tcp_client_new();
+  assert(client != NULL);
   
-  // Create socket
-  if ( (sock = nt_tcp_socket_new()) == NULL )
-    return NULL;
-  
-  // Accept connection
-  if (!nt_tcp_socket_accept(sock, server_fd)) {
-    nt_release(sock);
-    return NULL;
-  }
-  
-  // Set non-blocking
-  if (nt_util_fd_setnonblock(sock->fd) == -1)
-    return NULL;
-  
-  // Create a new client
-  if ( (client = nt_tcp_client_new(sock)) == NULL ) {
-    nt_release(sock);
-    return NULL;
-  }
-  
-  // As nt_tcp_client_new retains a reference to sock, we release ours here
-  nt_release(sock);
-  
-  // Set pointer to base-server tuple
-  client->bs = bs;
-  
-  // Set evflags
-  evflags = 0;
-  if (on_read)
-    evflags |= EV_READ;
-  if (on_write)
-    evflags |= EV_WRITE;
-  
-  // Make sure the error callback is set
-  if (on_error == NULL)
-    on_error = &_bev_on_error;
-  
-  // Check so that we handle at least one event
-  if (evflags == 0) {
-    warnx("nt_tcp_client_accept: neither read nor write callbacks was specified");
-    nt_release(client);
-    return NULL;
-  }
-  
-  // Create a new bufferevent
-  client->bev = bufferevent_new(sock->fd,
-    (void (*)(struct bufferevent *, void *))on_read,
-    (void (*)(struct bufferevent *, void *))on_write,
-    (void (*)(struct bufferevent *, short, void *))on_error,
-    (void *)client);
-  if (client->bev == NULL) {
-    nt_release(client);
-    return NULL;
-  }
-  
-  // Set base if not NULL
-  if (bs->base) {
-    if (bufferevent_base_set(bs->base->ev_base, client->bev) == -1) {
-      nt_release(client);
-      return NULL;
-    }
-  }
-  
-  // Enable events
-  if (bufferevent_enable(client->bev, evflags) != 0) {
-    warnx("nt_tcp_client_accept: bufferevent_enable() failed");
-    nt_release(client);
-    return NULL;
-  }
+  client->fd = nt_fd_tcp_accept(fd, &client->addr);
+  assert(client->fd != -1);
+  nt_tcp_client_setfd(client, client->fd);
+  nt_tcp_client_setrs(client, rs);
+  nt_fd_tcp_setblocking(client->fd, false);
+  nt_tcp_client_setcb(client, readcb, writecb, errorcb);
+  nt_runloop_add_client(rs->runloop, client);
   
   return client;
+}
+
+
+void nt_tcp_client_close(nt_tcp_client_t *self) {
+  assert(self->rs != NULL);
+  nt_runloop_remove_client(self->rs->runloop, self);
+  nt_fd_close(&self->fd);
 }

@@ -42,7 +42,7 @@ NT_STATIC_INLINE bool nt_fd_isopen(int fd) {
   @param fd pointer to socket.
 **/
 NT_STATIC_INLINE void nt_fd_close(int *fd) {
-  if (close(*fd) != 0)
+  if (*fd != -1 && close(*fd) != 0)
     errno = 0;
   *fd = -1;
 }

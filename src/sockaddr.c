@@ -22,13 +22,21 @@
 #include "sockaddr.h"
 #include <arpa/inet.h>
 
+// like NT_SOCKADDR_M but fetches a pointer
+#define NT_SOCKADDR_MP(ss, member4, member6) \
+  (const void *)((ss->ss_family == AF_INET) ? ( \
+    (const void *)&((const struct sockaddr_in *)ss)->member4 \
+  ) : ( \
+    (const void *)&((const struct sockaddr_in6 *)ss)->member6 \
+  ))
+
 
 char *nt_sockaddr_hostcpy(const nt_sockaddr_t *sa, char *buf, size_t bufsize) {
   if (inet_ntop(sa->ss_family,
-                (const void *)&NT_SOCKADDR_M(sa, sin_addr, sin6_addr),
+                NT_SOCKADDR_MP(sa, sin_addr, sin6_addr),
                 buf, bufsize-1) == NULL)
   {
-    perror("inet_ntop");
+    nt_warn("inet_ntop");
     return NULL;
   }
   return buf;

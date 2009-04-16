@@ -29,53 +29,32 @@
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 
-int nt_fd_tcp_socket(bool ipv6);
-
 /**
-  Bind socket @fd to address @sa.
+  Creates an endpoint for communication and returns a descriptor.
   
-  @param fd socket.
-  @param sa address.
-  @returns see documentation of bind()
+  @param family protocol family (AF_INET or AF_INET6)
+  @returns the socket FD or -1 on error.
 **/
-int nt_fd_tcp_bind(int fd, const nt_sockaddr_t *sa);
-
-/**
-  Enable listening.
-  
-  @param fd socket.
-  @param backlog listen queue size.
-  @returns boolean success
-**/
-NT_STATIC_INLINE void nt_fd_tcp_listen(int fd, int backlog) {
-  AZ(listen(fd, backlog));
-}
-
-/**
-  Accept a connection from @fd and store the client address in @sa.
-  
-  @param fd server socket on which the accept event have or will occur.
-  @param sa a value-return parameter which is the client address.
-  @returns open client socket on success or -1 on failure.
-**/
-int nt_fd_tcp_accept(int fd, nt_sockaddr_t *sa);
-
-NT_STATIC_INLINE void nt_fd_tcp_setblocking(int fd, bool blocking) {
-  blocking = !blocking;
-	AZ(ioctl(fd, FIONBIO, (int *)&blocking));
+NT_STATIC_INLINE int nt_fd_tcp_socket(int family) {
+  int fd = socket(family, SOCK_STREAM, IPPROTO_TCP);
+  if (fd == -1)
+    nt_warn("socket");
+  return fd;
 }
 
 /**
   Get an integer socket option.
   
   @param fd socket.
-  @param level on which level to read the option from (i.e. IPPROTO_TCP, etc).
+  @param level on which level to read the option (i.e. SOL_SOCKET, etc).
   @param option the option to retrieve.
-  @param value value-return parameter
+  @returns the value
 **/
-NT_STATIC_INLINE void nt_fd_tcp_getiopt(int fd, int level, int option, int *value) {
-  socklen_t vsz = 0;
-  AZ(getsockopt(fd, level, option, (void *restrict)&value, &vsz));
+NT_STATIC_INLINE int nt_fd_tcp_getiopt(int fd, int level, int option) {
+  int v = 0;
+  socklen_t vsz = sizeof(v);
+  AZ(getsockopt(fd, level, option, (void *restrict)&v, &vsz));
+  return v;
 }
 
 /**
@@ -88,6 +67,59 @@ NT_STATIC_INLINE void nt_fd_tcp_getiopt(int fd, int level, int option, int *valu
 **/
 NT_STATIC_INLINE void nt_fd_tcp_setiopt(int fd, int level, int option, int value) {
   AZ(setsockopt(fd, level, option, (const void *)&value, (socklen_t)sizeof(int)));
+}
+
+/**
+  Control if the socket should block on I/O or not.
+  
+  @param fd socket.
+  @param blocking if true, operations on @fd will block, otherwise calls like
+                  read() will not block.
+**/
+NT_STATIC_INLINE void nt_fd_tcp_setblocking(int fd, bool blocking) {
+  blocking = !blocking;
+	AZ(ioctl(fd, FIONBIO, (int *)&blocking));
+}
+
+/**
+  Bind socket @fd to address @sa.
+  
+  @param fd socket.
+  @param sa address.
+  @returns see documentation of bind()
+**/
+int nt_fd_tcp_bind(int fd, const nt_sockaddr_t *sa);
+
+/**
+  Check if socket is listening or not.
+  
+  @param fd socket.
+  @returns true if @fd has been successfully passed through listen(),
+           otherwise false.
+**/
+NT_STATIC_INLINE bool nt_fd_tcp_islistening(int fd) {
+  return nt_fd_tcp_getiopt(fd, SOL_SOCKET, SO_ACCEPTCONN) ? true : false;
+}
+
+/**
+  Accept a connection from @fd and store the client address in @sa.
+  
+  @param fd server socket on which the accept event have or will occur.
+  @param sa a value-return parameter which is the client address.
+  @returns open client socket on success or -1 on failure.
+**/
+NT_STATIC_INLINE int nt_fd_tcp_accept(int fd, nt_sockaddr_t *sa) {
+  socklen_t saz = sizeof(nt_sockaddr_t);
+  return accept(fd, (struct sockaddr *)sa, &saz);
+}
+
+/**
+  Shutdown a socket.
+  
+  @param fd socket
+**/
+NT_STATIC_INLINE int nt_fd_tcp_shutdown(int fd) {
+  return shutdown(fd, SHUT_RDWR);
 }
 
 

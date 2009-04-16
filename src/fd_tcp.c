@@ -29,20 +29,27 @@
 #include <sys/ioctl.h>
 
 
-int nt_fd_tcp_socket(bool ipv6) {
-  return socket(ipv6 ? AF_INET6 : AF_INET, SOCK_STREAM, PF_INET);
-}
-
-
 int nt_fd_tcp_bind(int fd, const nt_sockaddr_t *sa) {
-  static const char on = 1;
-  struct addrinfo *ptr;
+  int rc;
+  socklen_t salen;
   
+  // Reuse address
   nt_fd_tcp_setiopt(fd, SOL_SOCKET, SO_REUSEADDR, 1);
+  
+  // Reuse port
   #ifdef SO_REUSEPORT
   nt_fd_tcp_setiopt(fd, SOL_SOCKET, SO_REUSEPORT, 1);
   #endif
+  
+  // APPLE: Allow reuse of port/socket by different userids
+  #ifdef SO_REUSESHAREUID
+  nt_fd_tcp_setiopt(fd, SOL_SOCKET, SO_REUSESHAREUID, 1);
+  #endif
+  
+  // Set non-blocking
   nt_fd_tcp_setblocking(fd, false);
+  if(errno != 0)
+    nt_warn("nt_fd_tcp_setblocking");
   
   /* Don't delay send to coalesce packets (disable the Nagle algorithm) */
   /*if ( !blocking && !nt_tcp_socket_setiopt(self, IPPROTO_TCP, TCP_NODELAY, 1)) {
@@ -51,18 +58,12 @@ int nt_fd_tcp_bind(int fd, const nt_sockaddr_t *sa) {
     return false;
   }*/
   
-  return bind(fd, (const struct sockaddr *)sa, sizeof(nt_sockaddr_t));
-}
-
-
-int nt_fd_tcp_accept(int fd, nt_sockaddr_t *sa) {
-  socklen_t sockaddr_len = sizeof(nt_sockaddr_t);
-  self->fd = accept(server_fd, (struct sockaddr *)sa, &sockaddr_len);
+  if (sa->ss_family == AF_INET6)
+    salen = sizeof(struct sockaddr_in6);
+  else
+    salen = sizeof(struct sockaddr_in);
   
-  if (self->fd == -1) {
-    perror("accept() in nt_tcp_socket_accept()");
-    return false;
-  }
-  
-  return true;
+  if ((rc = bind(fd, (const struct sockaddr *)sa, salen)) == -1)
+    nt_warn("bind");
+  return rc;
 }

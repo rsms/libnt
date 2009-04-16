@@ -2,6 +2,7 @@
 #define _NT_DEFINES_H_
 
 #include <sys/types.h>
+#include <sys/time.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -82,16 +83,12 @@
   #define log_trace(fmt, ...) ((void)0)
 #endif
 
+#define nt_warn(fmt, ...) warn("%s:%d (%s) " fmt, __FILE__, __LINE__, __FUNCTION__, ##__VA_ARGS__)
+
 #if NT_DEBUG || NT_LOG_TRACE
   #include <unistd.h>
   #include <stdio.h>
 #endif
-
-/* Some generic types */
-typedef struct nt_tuple_t {
-  void *a;
-  void *b;
-} nt_tuple_t;
 
 typedef uint8_t byte_t;
 

@@ -29,11 +29,11 @@
 #include <stdlib.h>
 #include <err.h> /* warnx() */
 
-struct nt_obj *obj;
+struct nt_obj_t *obj;
 
-typedef void (nt_obj_deallocator)(struct nt_obj *obj);
+typedef void (nt_obj_deallocator)(struct nt_obj_t *obj);
 
-typedef struct nt_obj {
+typedef struct nt_obj_t {
   /* refcount - the actual reference counter */
   volatile int32_t refcount;
   
@@ -41,28 +41,28 @@ typedef struct nt_obj {
    *              the last reference to the object is released. Required.
    */
   volatile nt_obj_deallocator *deallocator;
-} nt_obj;
+} nt_obj_t;
 
 /* Convenience macros with type casting */
 /* get/put naming */
-#define nt_getref(obj)  nt_obj_get((nt_obj *)(obj))
-#define nt_putref(obj)  nt_obj_put((nt_obj *)(obj))
+#define nt_getref(obj)  nt_obj_get((nt_obj_t *)(obj))
+#define nt_putref(obj)  nt_obj_put((nt_obj_t *)(obj))
 /* inc/dec naming */
-#define nt_incref(obj)  nt_obj_get((nt_obj *)(obj))
-#define nt_decref(obj)  nt_obj_put((nt_obj *)(obj))
+#define nt_incref(obj)  nt_obj_get((nt_obj_t *)(obj))
+#define nt_decref(obj)  nt_obj_put((nt_obj_t *)(obj))
 /* retain/release naming */
-#define nt_retain(obj)  nt_obj_get((nt_obj *)(obj))
-#define nt_release(obj) nt_obj_put((nt_obj *)(obj))
+#define nt_retain(obj)  nt_obj_get((nt_obj_t *)(obj))
+#define nt_release(obj) nt_obj_put((nt_obj_t *)(obj))
 
 /* get/put naming */
-#define nt_getref(obj)  nt_obj_get((nt_obj *)(obj))
-#define nt_putref(obj)  nt_obj_put((nt_obj *)(obj))
+#define nt_getref(obj)  nt_obj_get((nt_obj_t *)(obj))
+#define nt_putref(obj)  nt_obj_put((nt_obj_t *)(obj))
 /* inc/dec naming */
-#define nt_incref(obj)  nt_obj_get((nt_obj *)(obj))
-#define nt_decref(obj)  nt_obj_put((nt_obj *)(obj))
+#define nt_incref(obj)  nt_obj_get((nt_obj_t *)(obj))
+#define nt_decref(obj)  nt_obj_put((nt_obj_t *)(obj))
 /* retain/release naming */
-#define nt_xretain(obj)  ((obj) ? nt_obj_get((nt_obj *)(obj)) : (void)(0))
-#define nt_xrelease(obj) ((obj) ? nt_obj_put((nt_obj *)(obj)) : (void)(0))
+#define nt_xretain(obj)  ((obj) ? nt_obj_get((nt_obj_t *)(obj)) : (void)(0))
+#define nt_xrelease(obj) ((obj) ? nt_obj_put((nt_obj_t *)(obj)) : (void)(0))
 
 /* Head definition
  * usage:
@@ -74,7 +74,7 @@ typedef struct nt_obj {
  * }
  *
  */
-#define NT_OBJ_HEAD nt_obj ntobj;
+#define NT_OBJ_HEAD nt_obj_t ntobj;
 
 
 /**
@@ -96,7 +96,7 @@ typedef struct nt_obj {
  * @deallocator: pointer to a deallocator.
  */
 #define nt_obj_set_deallocator(obj, deallocator) \
-  nt_atomic_setptr((void * volatile *)&( ((nt_obj *)(obj))->deallocator ), \
+  nt_atomic_setptr((void * volatile *)&( ((nt_obj_t *)(obj))->deallocator ), \
     (nt_obj_deallocator *)(deallocator))
 
 /**
@@ -104,7 +104,7 @@ typedef struct nt_obj {
   
   @obj: object in question.
  */
-NT_STATIC_INLINE void nt_obj_init(nt_obj *obj, nt_obj_deallocator *deallocator) {
+NT_STATIC_INLINE void nt_obj_init(nt_obj_t *obj, nt_obj_deallocator *deallocator) {
   nt_obj_set_refcount(obj, 1);
   nt_obj_set_deallocator(obj, deallocator);
 }
@@ -116,8 +116,8 @@ NT_STATIC_INLINE void nt_obj_init(nt_obj *obj, nt_obj_deallocator *deallocator) 
  */
 #define NT_OBJ_INIT(obj, _deallocator) \
   do { \
-    ((nt_obj *)(obj))->refcount = 1; \
-    ((nt_obj *)(obj))->deallocator = (volatile nt_obj_deallocator *)_deallocator; \
+    ((nt_obj_t *)(obj))->refcount = 1; \
+    ((nt_obj_t *)(obj))->deallocator = (volatile nt_obj_deallocator *)_deallocator; \
   } while(0)
 
 /**
@@ -147,7 +147,7 @@ NT_STATIC_INLINE void nt_obj_init(nt_obj *obj, nt_obj_deallocator *deallocator) 
     if ((self = (T *)nt_malloc(sizeof(T))) == NULL) { \
       return NULL; \
     } \
-    NT_OBJ_INIT((nt_obj *)self, (nt_obj_deallocator *)(deallocator)); \
+    NT_OBJ_INIT((nt_obj_t *)self, (nt_obj_deallocator *)(deallocator)); \
   } while(0)
 
 
@@ -182,10 +182,17 @@ NT_STATIC_INLINE void nt_obj_init(nt_obj *obj, nt_obj_deallocator *deallocator) 
 
 
 /**
+  Clear an object without clearing the NT_OBJ_HEAD
+**/
+#define NT_OBJ_CLEAR(objptr, objtype) \
+  memset((objptr)+sizeof(nt_obj_t), 0, sizeof(objtype)-sizeof(nt_obj_t));
+
+
+/**
  * nt_obj_get - increment refcount for object.
  * @obj: object.
  */
-NT_STATIC_INLINE void nt_obj_get(nt_obj *obj) {
+NT_STATIC_INLINE void nt_obj_get(nt_obj_t *obj) {
 #if !defined(NT_OBJ_REFCOUNT_CHECKS) || NT_OBJ_REFCOUNT_CHECKS
   if (nt_atomic_inc_and_fetch32(&obj->refcount) == 1)
     warnx("nt_obj_get: trying to get reference to dead object");
@@ -204,7 +211,7 @@ NT_STATIC_INLINE void nt_obj_get(nt_obj *obj) {
  * memory.  Only use the return value if you want to see if the ntref is now
  * gone, not present.
  */
-NT_STATIC_INLINE int nt_obj_put(nt_obj *obj) {
+NT_STATIC_INLINE int nt_obj_put(nt_obj_t *obj) {
   if (nt_atomic_dec_and_fetch32(&((obj)->refcount)) == 0) {
 #if !defined(NT_OBJ_REFCOUNT_CHECKS) || NT_OBJ_REFCOUNT_CHECKS
     if (obj->deallocator == NULL) {
@@ -226,10 +233,10 @@ NT_STATIC_INLINE int nt_obj_put(nt_obj *obj) {
  *
  * Returns the previous value of @obj
  */
-NT_STATIC_INLINE nt_obj *nt_obj_swap(nt_obj * volatile *obj, nt_obj *newobj) {
-  nt_obj *oldobj;
+NT_STATIC_INLINE nt_obj_t *nt_obj_swap(nt_obj_t * volatile *obj, nt_obj_t *newobj) {
+  nt_obj_t *oldobj;
   if (*obj != newobj) {
-    oldobj = (nt_obj *)nt_atomic_fetch_and_setptr((void * volatile *)obj, (void *)newobj);
+    oldobj = (nt_obj_t *)nt_atomic_fetch_and_setptr((void * volatile *)obj, (void *)newobj);
     if (*obj != oldobj) {
       if (oldobj) {
         nt_obj_put(oldobj);

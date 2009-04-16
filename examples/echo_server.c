@@ -6,6 +6,7 @@
 #include "../src/tcp_server.h"
 #include "../src/tcp_client.h"
 #include "../src/mpool.h"
+#include "../src/sockaddr.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -13,15 +14,20 @@
 #include <event.h>
 
 /**
+  Helper to reduce noise in the code below
+**/
+#define HOSTPORT(addrptr) nt_sockaddr_host(addrptr), nt_sockaddr_port(addrptr)
+
+/**
   We call this function when a new client have connected.
 */
 static void on_client_connected(nt_tcp_client_t *client) {
-  printf("client %p connected from %s on port %d\n", client, 
-    nt_tcp_socket_host(client->socket), nt_tcp_socket_port(client->socket));
+  printf("client %p connected from %s on port %d\n", client, HOSTPORT(&client->addr));
+  
   // Send a warm welcome
   static char data[] = 
     "Send something to me and I will send it back to you my friend.\n";
-  bufferevent_write(client->bev, data, sizeof(data));
+  nt_tcp_client_write(client, data, sizeof(data));
 }
 
 /**
@@ -34,36 +40,29 @@ static void on_client_read(struct bufferevent *bev, nt_tcp_client_t *client) {
     Simply write the bev->input to the buffer (bev->output), thus echoing
     bev->input back to the client.
   */
-  if (bufferevent_write_buffer(bev, bev->input) != 0)
-    warnx("bufferevent_write_buffer() failed");
+  nt_tcp_client_writebuf(client, bev->input);
   /*
-    The above lines is roughly equivalent to this code:
+    The above line is roughly equivalent to this code:
     
     char buf[BUFLEN];
-    int len = bufferevent_read(bev, buf, BUFLEN);
-    if (len == 0) {
-      warnx("bufferevent_read() failed");
-    }
-    else {
-      if (bufferevent_write(bev, buf, len) != 0)
-        warnx("bufferevent_write() failed");
-    }
+    int len = bufferevent_read(&client->bev, buf, BUFLEN);
+    bufferevent_write(&client->bev, buf, len);
   */
 }
 
 /**
-  Handles connection "errors" (might EOF or a true error).
+  Handles connection "errors".
   
   Basically, this function is called when a client is no longer available.
-  The cause may be a channel error or a normal disconnect.
+  The cause may be a channel error or a nice disconnect.
 */
 static void on_client_error(struct bufferevent *bev, short what, nt_tcp_client_t *client) {
   if (what & EVBUFFER_EOF)
     printf("client %p disconnected\n", client);
   else
     warnx("client %p error\n", client);
-  nt_release(client); // Probably freeling the client, implying closing the
-                      // underlying socket.
+  nt_tcp_client_close(client);
+  nt_release(client);
 }
 
 /**
@@ -73,12 +72,10 @@ static void on_client_error(struct bufferevent *bev, short what, nt_tcp_client_t
   to be accept() ed. You have to accept (or remove) the event, or else we will
   end up in an never-ending loop (because of nt_event_base).
 */
-static void on_accept(int fd, short ev, nt_event_base_server *bs) {
+static void on_accept(int fd, short ev, nt_tcp_server_runloop_t *rs) {
   nt_tcp_client_t *client;
-  if ( (client = nt_tcp_server_accept_client(bs, fd, &on_client_read, NULL, &on_client_error)) ) {
-    /* We disable the Nagle algorithm, sending messages directly */
-    //nt_tcp_socket_setiopt(client->socket, IPPROTO_TCP, TCP_NODELAY, 1);
-    /* And call our on_client_connected function */
+  if ( (client = nt_tcp_client_accept(rs, fd, &on_client_read, NULL, &on_client_error)) ) {
+    // Call our on_client_connected function
     on_client_connected(client);
   }
   // In a real program, you would proabaly handle a NULL return from
@@ -88,12 +85,8 @@ static void on_accept(int fd, short ev, nt_event_base_server *bs) {
 
 int main(int argc, char * const *argv) {
   // Our server and base objects
-  nt_tcp_server *server;
-  nt_event_base *base;
-  
-  // Parameters written out for educational purposes
-  bool ipv6_enabled = true; // Enable binding to IP v6 addresses
-  bool ipv6_only = false;   // Only allow binding to IP v6 addresses
+  nt_tcp_server_t *server;
+  nt_runloop_t *runloop;
   
   // Command line arguments, with default values
   char *addr = "";  // Address to bind to, in human notion
@@ -135,39 +128,34 @@ int main(int argc, char * const *argv) {
   server = nt_tcp_server_new(&on_accept);
   
   // bind
-  if (!nt_tcp_server_bind(server, addr, port, ipv6_enabled, ipv6_only))
+  if (!nt_tcp_server_bind(server, addr, port, 0))
     exit(1);
   
-  // print some info to stdout
-  if (server->socket4) {
-    printf("listening on %s:%d\n", nt_tcp_socket_host(server->socket4),
-      nt_tcp_socket_port(server->socket4));
-  }
-  if (server->socket6) {
-    printf("listening on [%s]:%d\n", nt_tcp_socket_host(server->socket6),
-      nt_tcp_socket_port(server->socket6));
-  }
+  // print bound addresses to stdout
+  if (server->fd4 != -1)
+    printf("listening on %s:%d\n", HOSTPORT(&server->addr4));
+  if (server->fd6 != -1)
+    printf("listening on [%s]:%d\n", HOSTPORT(&server->addr6));
   
   /** -----------------------------------------------------------------------
   
-    Create an event base, add the server and enter the runloop.
+    Setup a runloop and add the server to it.
     
-    A nt_event_base handles asynchronous I/O in the most efficient manner
+    A runloop handles asynchronous I/O in the most efficient manner
     possible (epoll, kqueue, etc).
     
-    In a multi-threaded environment you have one event base per thread and
-    add the server to each event base.
-  
+    In a multi-threaded environment you have one runloop per thread, and
+    add the server to each runloop.
   */
   
-  base = nt_event_base_new();
+  runloop = nt_runloop_new();
   
   // Add our server
-  if (!nt_event_base_add_server(base, server, NULL))
+  if (!nt_runloop_add_server(runloop, server))
     exit(1);
   
-  // Enter event base runloop
-  int rc = nt_event_base_loop(base, 0);
+  // Run runloop
+  int rc = nt_runloop_run(runloop, 0);
   if (rc < 0)
     warnx("nt_event_base_loop: error");
   else if (rc > 0)
@@ -177,7 +165,7 @@ int main(int argc, char * const *argv) {
   /** ----------------------------------------------------------------------- */
   
   // release our reference to base
-  nt_release(base);
+  nt_release(runloop);
   
   // release our reference to server
   nt_release(server);

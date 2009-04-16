@@ -15,7 +15,7 @@ typedef struct myobj {
 
 static bool myobj_deallocator_was_called = false;
 
-void myobj_deallocator(nt_obj *obj) {
+void myobj_deallocator(nt_obj_t *obj) {
   printf("myobj_deallocator called with obj @ %p\n", obj);
   myobj_deallocator_was_called = true;
   //free(obj);
@@ -26,26 +26,26 @@ int main (int argc, char const *argv[]) {
   obj = malloc(sizeof(myobj));
   
   // initialize an object
-  nt_obj_init((nt_obj *)obj, &myobj_deallocator); // new reference
-  assert(nt_obj_get_refcount((nt_obj *)obj) == 1);
+  nt_obj_init((nt_obj_t *)obj, &myobj_deallocator); // new reference
+  assert(nt_obj_get_refcount((nt_obj_t *)obj) == 1);
   
   // get an extra reference
   nt_getref(obj);
-  assert(nt_obj_get_refcount((nt_obj *)obj) == 2);
-  printf("obj refcount is %d\n", nt_obj_get_refcount((nt_obj *)obj));
+  assert(nt_obj_get_refcount((nt_obj_t *)obj) == 2);
+  printf("obj refcount is %d\n", nt_obj_get_refcount((nt_obj_t *)obj));
   
   // swap
-  nt_obj *old = nt_obj_swap((nt_obj * volatile *)&obj, NULL);
+  nt_obj_t *old = nt_obj_swap((nt_obj_t * volatile *)&obj, NULL);
   assert(obj == NULL); // obj was replaced and is not NULL
   assert(nt_obj_get_refcount(old) == 1); // obj was released by nt_obj_swap
-  old = nt_obj_swap((nt_obj * volatile *)&obj, old);
+  old = nt_obj_swap((nt_obj_t * volatile *)&obj, old);
   assert(obj != NULL);
   assert(old == NULL);
-  assert(nt_obj_get_refcount((nt_obj *)obj) == 2); // obj was retained by nt_obj_swap
+  assert(nt_obj_get_refcount((nt_obj_t *)obj) == 2); // obj was retained by nt_obj_swap
   
   // release our extra reference
   nt_putref(obj); // put back one reference
-  assert(nt_obj_get_refcount((nt_obj *)obj) == 1);
+  assert(nt_obj_get_refcount((nt_obj_t *)obj) == 1);
   
   // release the reference retained by nt_obj_init
   nt_putref(obj); // put back one reference -- should call the deallocator
@@ -56,7 +56,7 @@ int main (int argc, char const *argv[]) {
   
   // but in this case, we do not free() our object, just so we can perform this check.
   assert(myobj_deallocator_was_called == true);
-  assert(nt_obj_get_refcount((nt_obj *)obj) == 0);
+  assert(nt_obj_get_refcount((nt_obj_t *)obj) == 0);
   
   // try the warning mechanism
   //nt_getref(obj); // emits a warning on stderr because refcount < 1

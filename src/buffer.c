@@ -24,7 +24,8 @@
 #include <stdarg.h>
 
 
-NT_OBJ(nt_buffer_t, nt_buffer_new(size_t size, size_t growextra), {
+NT_OBJ(nt_buffer_t, nt_buffer_new(size_t size, size_t growextra),
+{/* constructor: */
   if (size == 0)
 	  size = growextra;
 	if (size == 0)
@@ -36,7 +37,8 @@ NT_OBJ(nt_buffer_t, nt_buffer_new(size_t size, size_t growextra), {
 	self->end = self->start + size;
 	self->ptr = self->start;
   self->growextra = growextra;
-},{
+},
+{/* destructor: */
   if (self->start && nt_buffer_size(self)) {
     nt_free(self->start, nt_buffer_size(self));
   }

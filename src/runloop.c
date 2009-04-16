@@ -26,27 +26,24 @@
 #include "mpool.h"
 
 static void _dealloc(nt_runloop_t *self) {
-  if (self->ev_base)
-    event_base_free(self->ev_base);
+  assert(self->ev_base != NULL);
+  event_base_free(self->ev_base);
+  // todo: iterate self->bsv and call nt_runloop_remove_server()
+  nt_release(self->srlist);
   nt_free(self, sizeof(nt_runloop_t));
 }
 
 
 nt_runloop_t *nt_runloop_new() {
-  nt_runloop_t *self;
-  if ((self = (nt_runloop_t *)nt_malloc(sizeof(nt_runloop_t))) == NULL)
-    return NULL;
-  nt_obj_init((nt_obj *)self, (nt_obj_deallocator *)_dealloc);
+  NT_OBJ_ALLOC_INIT_self(nt_runloop_t, &_dealloc);
   self->ev_base = event_base_new();
+  self->srlist = nt_array_new(1, 0);
   return self;
 }
 
 
-/* defined in libevent event.c */
-extern struct event_base *current_base;
-
+extern struct event_base *current_base; /* defined in libevent/event.c */
 nt_runloop_t *nt_shared_runloop = NULL;
-
 nt_runloop_t *nt_runloop_default() {
   if (!nt_shared_runloop) {
     nt_shared_runloop = nt_runloop_new();
@@ -62,93 +59,89 @@ nt_runloop_t *nt_runloop_default() {
 }
 
 
-bool nt_runloop_add_socket( nt_runloop_t *self,
-                            int fd,
-                            struct event *ev,
-                            int flags,
-                            const struct timeval *timeout,
-                            void (*cb)(int, short, void *),
-                            void *cbarg)
-{
-  event_set(ev, fd, flags, cb, cbarg);
-  
-  if (event_base_set(self->ev_base, ev) != 0) {
-    warnx("nt_runloop_add_socket: event_base_set() failed");
-    return false;
-  }
-  
-  if (event_add(ev, timeout) != 0) {
-    event_del(ev); // todo xxx really del if add failed?
-    warnx("nt_runloop_add_socket: event_add() failed");
-    return false;
-  }
-  
-  return true;
+void nt_runloop_add_ev(nt_runloop_t *self, struct event *ev, const struct timeval *timeout) {
+  if (timeout && timeout->tv_sec == 0 && timeout->tv_usec == 0)
+    timeout = NULL;
+  AZ(event_base_set(self->ev_base, ev));
+  AZ(event_add(ev, timeout));
 }
 
 
-/* helper used by nt_runloop_add_server */
-NT_STATIC_INLINE struct event *_mk_add_accept_ev(nt_runloop_server *bs,
-                                              nt_tcp_socket *sock,
-                                              const struct timeval *timeout )
-{
+NT_STATIC_INLINE struct event *_mkacceptev( nt_tcp_server_runloop_t *sr, int fd) {
   struct event *ev;
-  bool success;
-  
-  ev = (struct event *)nt_malloc(sizeof(struct event));
-  if (!ev) {
-    /* errno == ENOMEM */
+  if ((ev = (struct event *)nt_malloc(sizeof(struct event))) == NULL)
     return NULL;
-  }
-  
-  success = nt_runloop_add_socket( bs->base, sock, ev, EV_READ|EV_PERSIST, timeout,
-                                   (void (*)(int, short, void *))bs->server->on_accept,
-                                   (void *)bs );
-  if (!success) {
-    free(ev);
-    ev = NULL;
-  }
-  
+  event_set(ev, fd, EV_READ|EV_PERSIST, 
+    (void (*)(int, short, void *))(sr->server->on_accept),
+    (void *)sr);
   return ev;
 }
 
 
-bool nt_runloop_add_server(nt_runloop_t *self, nt_tcp_server *server, const struct timeval *timeout) 
-{
-  struct event *ev;
-  nt_runloop_server *bs;
-  size_t num_sockets = (server->socket4 ? 1 : 0) + (server->socket6 ? 1 : 0);
+bool nt_runloop_add_server(nt_runloop_t *self, nt_tcp_server_t *server) {
+  nt_tcp_server_runloop_t *sr;
   
-  if (num_sockets == 0) {
-    warnx("nt_tcp_server_register: server is not bound (no sockets)");
-    return false;
-  }
+  assert((server->fd4 != -1) || (server->fd6 != -1));
+  assert(server->on_accept != NULL);
   
-  // Check if we have space for more accept events
-  if ( (nt_atomic_read32(&server->n_accept_evs) + num_sockets) > NT_TCP_SERVER_MAX_ACCEPT_EVS ) {
-    warnx("nt_tcp_server_register: too many accept events");
-    return false;
-  }
+  sr = (nt_tcp_server_runloop_t *)nt_malloc(sizeof(nt_tcp_server_runloop_t));
+  sr->server = server;
+  sr->runloop = self;
   
-  // runloop+server conduit
-  bs = (nt_runloop_server *)nt_malloc(sizeof(nt_runloop_server));
-  bs->runloop = self;
-  bs->server = server;
-  server->v_bs[nt_atomic_fetch_and_inc32(&server->n_bs)] = (void *)bs;
-  
-  // Register IPv4 socket
-  if (server->socket4) {
-    if ((ev = _mk_add_accept_ev(bs, server->socket4, timeout)) == NULL)
+  if (server->fd4 != -1) {
+    assert(server->ev4 == NULL);
+    if ((server->ev4 = _mkacceptev(sr, server->fd4)) == NULL) {
+      nt_runloop_remove_server(self, server);
       return false;
-    server->v_accept_evs[nt_atomic_fetch_and_inc32(&server->n_accept_evs)] = ev;
+    }
+    nt_runloop_add_ev(self, server->ev4, &server->accept_timeout);
   }
   
-  // Register IPv6 socket
-  if (server->socket6) {
-    if ((ev = _mk_add_accept_ev(bs, server->socket6, timeout)) == NULL)
+  if (server->fd6 != -1) {
+    assert(server->ev6 == NULL);
+    if ((server->ev6 = _mkacceptev(sr, server->fd6)) == NULL) {
+      nt_runloop_remove_server(self, server);
       return false;
-    server->v_accept_evs[nt_atomic_fetch_and_inc32(&server->n_accept_evs)] = ev;
+    }
+    nt_runloop_add_ev(self, server->ev6, &server->accept_timeout);
   }
+  
+  nt_array_push(self->srlist, sr);
   
   return true;
+}
+
+
+void nt_runloop_add_client(nt_runloop_t *self, nt_tcp_client_t *client) {
+  short evflags = 0;
+  if (client->bev.readcb)
+    evflags |= EV_READ;
+  if (client->bev.writecb)
+    evflags |= EV_WRITE;
+  AZ(bufferevent_enable(&client->bev, evflags));
+}
+
+
+void nt_runloop_remove_client(nt_runloop_t *self, nt_tcp_client_t *client) {
+  short evflags = 0;
+  if (client->bev.readcb)
+    evflags |= EV_READ;
+  if (client->bev.writecb)
+    evflags |= EV_WRITE;
+  AZ(bufferevent_disable(&client->bev, evflags));
+}
+
+
+void nt_runloop_remove_server(nt_runloop_t *self, nt_tcp_server_t *server) {
+  if (server->ev4) {
+    nt_runloop_remove_ev(server->ev4);
+    nt_free(server->ev4, sizeof(struct event));
+    server->ev4 = NULL;
+  }
+  if (server->ev6) {
+    nt_runloop_remove_ev(server->ev6);
+    nt_free(server->ev6, sizeof(struct event));
+    server->ev6 = NULL;
+  }
+  // todo: remove any bs in self->srlist which include @server
 }

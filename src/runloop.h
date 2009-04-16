@@ -20,28 +20,31 @@
   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
   THE SOFTWARE.
-*/
+**/
 #ifndef _NT_EVENT_BASE_H_
 #define _NT_EVENT_BASE_H_
 
 #include "obj.h"
 #include "fd_tcp.h"
 #include "tcp_server.h"
+#include "tcp_client.h"
+#include "array.h"
 #include <event.h>
 
 typedef struct nt_runloop_t {
   NT_OBJ_HEAD
   struct event_base *ev_base;
+  nt_array_t *srlist; /* list of nt_tcp_server_runloop_t */
 } nt_runloop_t;
 
 /**
   Create a new nt_runloop_t
-*/
+**/
 nt_runloop_t *nt_runloop_new();
 
 /**
   The libevent global/shared runloop
-*/
+**/
 nt_runloop_t *nt_runloop_default();
 
 /**
@@ -50,7 +53,7 @@ nt_runloop_t *nt_runloop_default();
   @param flags  any combination of EVLOOP_ONCE | EVLOOP_NONBLOCK (or 0 to loop 
                 until no events exist)
   @return 0 if successful, -1 if an error occurred, or 1 if no events were registered.
-*/
+**/
 NT_STATIC_INLINE int nt_runloop_run(nt_runloop_t *self, int flags) {
   return event_base_loop(self->ev_base, flags);
 }
@@ -67,7 +70,7 @@ NT_STATIC_INLINE int nt_runloop_run(nt_runloop_t *self, int flags) {
   @param timeout  the amount of time after which the loop should terminate or
                   NULL to wait forever.
   @return 0 if successful, or -1 if an error occurred
- */
+**/
 NT_STATIC_INLINE int nt_runloop_exit(nt_runloop_t *self, struct timeval *timeout) {
   return event_base_loopexit(self->ev_base, timeout);
 }
@@ -82,39 +85,56 @@ NT_STATIC_INLINE int nt_runloop_exit(nt_runloop_t *self, struct timeval *timeout
   Subsequent invocations of nt_runloop_loop() will proceed normally.
 
   @return 0 if successful, or -1 if an error occurred
- */
+**/
 NT_STATIC_INLINE int nt_runloop_abort(nt_runloop_t *self) {
   return event_base_loopbreak(self->ev_base);
 }
 
 /**
-  Add a socket with an event to this base.
+  Add an event to the runloop.
   
-  @param  sock  the socket to add
-  @param  ev  the event to add
-  @param  flags  see documentation of event_set()
-  @param  timeout  the maximum amount of time to wait for the event, or NULL
-                   to wait forever.
-  @param  cb  event callback
-  @param  cbarg  argument to pass to @cb
-  @return true on success, otherwise false is returned
- */
-bool nt_runloop_add_socket( nt_runloop_t *self,
-                            int fd,
-                            struct event *ev,
-                            int flags,
-                            const struct timeval *timeout,
-                            void (*cb)(int, short, void *),
-                            void *cbarg);
+  @param ev event
+  @param timeout the maximum amount of time to wait for the event, or NULL to
+                 wait forever.
+**/
+void nt_runloop_add_ev( nt_runloop_t *self, struct event *ev, const struct timeval *timeout);
 
 /**
-  Register the server on event base.
+  Remove an event from the runloop.
   
-  @param server  server to add
-  @param timeout  the maximum amount of time to wait for an accept event, or
-                  NULL to wait forever.
-*/
-bool nt_runloop_add_server( nt_runloop_t *self, nt_tcp_server *server, 
-                            const struct timeval *timeout);
+  @param ev event
+**/
+NT_STATIC_INLINE void nt_runloop_remove_ev(struct event *ev) {
+  AZ(event_del(ev));
+}
+
+/**
+  Add a server to the runloop.
+  
+  @param server server
+**/
+bool nt_runloop_add_server( nt_runloop_t *self, nt_tcp_server_t *server);
+
+/**
+  Remove a server from the runloop.
+  
+  @param server server
+**/
+void nt_runloop_remove_server(nt_runloop_t *self, nt_tcp_server_t *server);
+
+/**
+  Add a client to the runloop.
+  
+  @param client client
+**/
+void nt_runloop_add_client(nt_runloop_t *self, nt_tcp_client_t *client);
+
+/**
+  Remove a client from the runloop.
+  
+  @param client client
+**/
+void nt_runloop_remove_client(nt_runloop_t *self, nt_tcp_client_t *client);
+
 
 #endif

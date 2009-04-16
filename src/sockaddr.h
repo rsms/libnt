@@ -27,8 +27,6 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-typedef struct sockaddr_storage nt_sockaddr_t;
-
 /* Read member without knowing the family */
 #define NT_SOCKADDR_M(ss, member4, member6) \
   ((ss->ss_family == AF_INET) ? ( \
@@ -37,12 +35,15 @@ typedef struct sockaddr_storage nt_sockaddr_t;
     ((const struct sockaddr_in6 *)ss)->member6 \
   ))
 
-// Return a human readable string representing the hostname.
-// This is not thread safe (See nt_sockaddr_hostcpy() for a thread safe version).
-const char *nt_sockaddr_host(const nt_sockaddr_t *sa);
+// todo: description
+typedef struct sockaddr_storage nt_sockaddr_t;
 
 // Copy a human readable string representing the hostname.
 char *nt_sockaddr_hostcpy(const nt_sockaddr_t *sa, char *buf, size_t bufsize);
+
+// Return a human readable string representing the hostname.
+// This is not thread safe (See nt_sockaddr_hostcpy() for a thread safe version).
+const char *nt_sockaddr_host(const nt_sockaddr_t *sa);
 
 // Port of socket address, in host byte order.
 NT_STATIC_INLINE uint16_t nt_sockaddr_port(const nt_sockaddr_t *sa) {
