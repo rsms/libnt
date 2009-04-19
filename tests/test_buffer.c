@@ -15,8 +15,8 @@ int main (int argc, char const *argv[]) {
   assert(nt_buffer_occupied(b) == 21);
   nt_buffer_appendc(b, '\0');
   assert(nt_buffer_occupied(b) == 22);
-  
-  // xxx todo assertions
+  assert(nt_buffer_indexof(b, (const byte_t *)"korv", 4) == 16);
+  assert(nt_buffer_indexof(b, (const byte_t *)"not here", 8) == -1);
   
   return 0;
 }

@@ -25,17 +25,24 @@
 #define _NT_EVENT_BASE_H_
 
 #include "obj.h"
-#include "fd_tcp.h"
-#include "tcp_server.h"
-#include "tcp_client.h"
+#include "sockutil.h"
+#include "sockserv.h"
+#include "sockconn.h"
 #include "array.h"
+#include <signal.h>
 #include <event.h>
 
 typedef struct nt_runloop_t {
   NT_OBJ_HEAD
   struct event_base *ev_base;
-  nt_array_t *srlist; /* list of nt_tcp_server_runloop_t */
+  nt_array_t *srlist; /* list of nt_sockserv_runloop_t */
+  struct event *sigevv[NSIG];
 } nt_runloop_t;
+
+/**
+  Called when a observed signal was raised.
+**/
+typedef void (*nt_runloop_signalcb_t)(int signum, short event, struct event *ev);
 
 /**
   Create a new nt_runloop_t
@@ -54,7 +61,8 @@ nt_runloop_t *nt_runloop_default();
                 until no events exist)
   @return 0 if successful, -1 if an error occurred, or 1 if no events were registered.
 **/
-NT_STATIC_INLINE int nt_runloop_run(nt_runloop_t *self, int flags) {
+NT_STATIC_INLINE
+int nt_runloop_run(nt_runloop_t *self, int flags) {
   return event_base_loop(self->ev_base, flags);
 }
 
@@ -71,7 +79,8 @@ NT_STATIC_INLINE int nt_runloop_run(nt_runloop_t *self, int flags) {
                   NULL to wait forever.
   @return 0 if successful, or -1 if an error occurred
 **/
-NT_STATIC_INLINE int nt_runloop_exit(nt_runloop_t *self, struct timeval *timeout) {
+NT_STATIC_INLINE
+int nt_runloop_exit(nt_runloop_t *self, struct timeval *timeout) {
   return event_base_loopexit(self->ev_base, timeout);
 }
 
@@ -86,7 +95,8 @@ NT_STATIC_INLINE int nt_runloop_exit(nt_runloop_t *self, struct timeval *timeout
 
   @return 0 if successful, or -1 if an error occurred
 **/
-NT_STATIC_INLINE int nt_runloop_abort(nt_runloop_t *self) {
+NT_STATIC_INLINE
+int nt_runloop_abort(nt_runloop_t *self) {
   return event_base_loopbreak(self->ev_base);
 }
 
@@ -97,14 +107,15 @@ NT_STATIC_INLINE int nt_runloop_abort(nt_runloop_t *self) {
   @param timeout the maximum amount of time to wait for the event, or NULL to
                  wait forever.
 **/
-void nt_runloop_add_ev( nt_runloop_t *self, struct event *ev, const struct timeval *timeout);
+void nt_runloop_addev( nt_runloop_t *self, struct event *ev, const struct timeval *timeout);
 
 /**
   Remove an event from the runloop.
   
   @param ev event
 **/
-NT_STATIC_INLINE void nt_runloop_remove_ev(struct event *ev) {
+NT_STATIC_INLINE
+void nt_runloop_rmev(struct event *ev) {
   AZ(event_del(ev));
 }
 
@@ -113,28 +124,45 @@ NT_STATIC_INLINE void nt_runloop_remove_ev(struct event *ev) {
   
   @param server server
 **/
-bool nt_runloop_add_server( nt_runloop_t *self, nt_tcp_server_t *server);
+bool nt_runloop_addsockserv(nt_runloop_t *self, nt_sockserv_t *server);
 
 /**
   Remove a server from the runloop.
   
   @param server server
 **/
-void nt_runloop_remove_server(nt_runloop_t *self, nt_tcp_server_t *server);
+void nt_runloop_rmsockserv(nt_runloop_t *self, nt_sockserv_t *server);
 
 /**
-  Add a client to the runloop.
+  Add a socket connection to the runloop.
   
-  @param client client
+  @param conn socket connection
 **/
-void nt_runloop_add_client(nt_runloop_t *self, nt_tcp_client_t *client);
+void nt_runloop_addsockconn(nt_runloop_t *self, nt_sockconn_t *conn);
 
 /**
-  Remove a client from the runloop.
+  Remove a socket connection from the runloop.
   
-  @param client client
+  @param conn socket connection
 **/
-void nt_runloop_remove_client(nt_runloop_t *self, nt_tcp_client_t *client);
+void nt_runloop_rmsockconn(nt_runloop_t *self, nt_sockconn_t *conn);
+
+/**
+  Start observing a signal.
+  
+  @param signum signal number
+  @param cb callback
+  @param timeout optional timeout
+**/
+void nt_runloop_addsignal(nt_runloop_t *self, int signum, nt_runloop_signalcb_t cb,
+                          const struct timeval *timeout);
+
+/**
+  Stop observing a signal.
+  
+  @param signum signal number
+**/
+void nt_runloop_rmsignal(nt_runloop_t *self, int signum);
 
 
 #endif

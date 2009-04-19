@@ -1,5 +1,5 @@
 /**
-  TCP server.
+  Socket server.
   
   Copyright (c) 2009 Notion <http://notion.se/>
 
@@ -21,29 +21,29 @@
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
   THE SOFTWARE.
 **/
-#ifndef _NT_TCP_SERVER_H_
-#define _NT_TCP_SERVER_H_
+#ifndef _NT_SOCKSERV_H_
+#define _NT_SOCKSERV_H_
 
 #include "obj.h"
 #include "sockaddr.h"
-#include <stdbool.h>
-#include <stdint.h>
 #include <event.h>
+#include <sys/socket.h>
 
-typedef struct nt_tcp_server_runloop_t {
-  struct nt_tcp_server_t *server;
+
+typedef struct nt_sockserv_runloop_t {
+  struct nt_sockserv_t *server;
   struct nt_runloop_t *runloop;
-} nt_tcp_server_runloop_t;
+} nt_sockserv_runloop_t;
 
 /**
   Called when a client connection is pending an accept() call.
 **/
-typedef void (*nt_tcp_server_on_accept_t)(int fd, short ev, nt_tcp_server_runloop_t *bs);
+typedef void (*nt_sockserv_on_accept_t)(int fd, short ev, nt_sockserv_runloop_t *bs);
 
 /**
   Server object.
 **/
-typedef struct nt_tcp_server_t {
+typedef struct nt_sockserv_t {
   NT_OBJ_HEAD
   
   /* Listening sockets */
@@ -59,46 +59,51 @@ typedef struct nt_tcp_server_t {
   struct event *ev6;
   
   /* Callbacks */
-  nt_tcp_server_on_accept_t on_accept;
+  nt_sockserv_on_accept_t on_accept;
   struct timeval accept_timeout;
   
-  /* Internal use only */
-  /*volatile int32_t n_accept_evs;
-  struct event *v_accept_evs[NT_TCP_SERVER_MAX_ACCEPT_EVS];
-  volatile int32_t n_bs;
-  struct nt_event_base_server *v_bs[NT_TCP_SERVER_MAX_ACCEPT_EVS];*/
-} nt_tcp_server_t;
+} nt_sockserv_t;
 
 /**
-  Create a new server.
+  Create a new socket server.
   
   @param  on_accept  accept handler
 **/
-nt_tcp_server_t *nt_tcp_server_new(nt_tcp_server_on_accept_t on_accept);
+nt_sockserv_t *nt_sockserv_new(nt_sockserv_on_accept_t on_accept);
 
 /**
   Bind server to a specific address.
   
   @param server server.
-  @param sa socket address.
+  @param sa     socket address.
+  @param type   SOCK_STREAM or SOCK_DGRAM
   @returns boolean success.
-  @see nt_tcp_server_bind()
+  @see nt_sockserv_bind()
 **/
-bool nt_tcp_server_bindtoaddr(nt_tcp_server_t *server, const nt_sockaddr_t *sa, void *ai);
+bool nt_sockserv_bindtoaddr(nt_sockserv_t *self, const nt_sockaddr_t *sa, int type);
 
 /**
-  Bind server to address and port.
+  Bind server to address/hostname and port.
+  
+  Only for binding to TCP or UDP -- you should use nt_sockserv_bindtoaddr for
+  binding to UNIX sockets.
   
   @param server server
   @param addr   address
   @param port   port number
-  @param proto  set to 0 to bind to both IPv4 and/or IPv6 addresses.
-                set to IPPROTO_IPV4 to only bind to IPv4 addresses.
-                set to IPPROTO_IPV6 to bind to only IPv6 addresses.
+  @param type   SOCK_STREAM or SOCK_DGRAM
+  @param family set to AF_INET to bind to IPv4.
+                set to AF_INET6 to bind to IPv6.
+                set to AF_UNSPEC to bind to both IPv4 and IPv6
   @returns boolean success
-  @see nt_tcp_server_bindtoaddr()
+  @see nt_sockserv_bindtoaddr()
 **/
-bool nt_tcp_server_bind(nt_tcp_server_t *server, const char *addr, int port, int proto);
+bool nt_sockserv_bind(nt_sockserv_t *self, const char *addr, int port, int type, int family);
 
+
+/**
+  Listen for incoming connections.
+**/
+bool nt_sockserv_listen(nt_sockserv_t *self);
 
 #endif

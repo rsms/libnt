@@ -2,17 +2,17 @@
 
 LIB_S_SRCS =  src/atomic_queue_asmimpl.s
 LIB_C_SRCS =  src/util.c src/machine.c \
-              src/buffer.c \
+              src/buffer.c src/array.c \
               src/mpool.c \
               src/atomic_queue.c \
               src/runloop.c \
-              src/sockaddr.c src/fd_tcp.c \
-              src/tcp_server.c src/tcp_client.c
+              src/sockaddr.c src/sockutil.c \
+              src/sockserv.c src/sockconn.c
 LIB_S_OBJS = ${LIB_S_SRCS:.s=.o}
 LIB_C_OBJS = ${LIB_C_SRCS:.c=.o}
 LIB_OBJS=${LIB_S_OBJS} ${LIB_C_OBJS}
 
-TESTS = refcount mpool atomic_queue test_buffer test_array
+TESTS = refcount test_mpool atomic_queue test_buffer test_array
 TEST_SRCS = $(foreach n,$(TESTS),tests/$(n).c)
 TEST_OBJS = ${TEST_SRCS:.c=.o}
 
@@ -30,6 +30,7 @@ CFLAGS += -Wall -include src/_prefix.h
 CFLAGS += -std=c99
 CFLAGS += -DNT_DEBUG=1
 #CFLAGS += -DNT_LOG_TRACE=1
+CFLAGS += -DNT_POOL_ENABLE_LOGGING=1
 CFLAGS += -I/opt/local/include
 TOOL_CFLAGS = -Lbuild/libs -lnt -levent
 

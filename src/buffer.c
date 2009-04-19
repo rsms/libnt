@@ -24,6 +24,9 @@
 #include <stdarg.h>
 
 
+#define ADDROF(a, i, size) ((void **)((a)->start + ((size) * (i))))
+
+
 NT_OBJ(nt_buffer_t, nt_buffer_new(size_t size, size_t growextra),
 {/* constructor: */
   if (size == 0)
@@ -95,7 +98,7 @@ bool nt_buffer_appendb(nt_buffer_t *self, byte_t what) {
 }
 
 
-bool buffer_appendf(nt_buffer_t *self, char *fmt, ...) {
+bool nt_buffer_appendf(nt_buffer_t *self, const char *fmt, ...) {
 	va_list args;
 	size_t length, size;
 	int n;
@@ -128,4 +131,36 @@ bool buffer_appendf(nt_buffer_t *self, char *fmt, ...) {
 	while (length > size);
   
 	return false;
+}
+
+
+ssize_t nt_buffer_indexof(nt_buffer_t *self, const byte_t *what, size_t n) {
+  ssize_t i;
+  size_t len = nt_buffer_length(self);
+  // what happens if len > SSIZETMAX?
+  for (i = 0; i < len; i++)
+    if (memcmp((const char *)(self->start + i), (const char *)what, n) == 0)
+      return i;
+  return -1;
+}
+
+
+void nt_buffer_del(nt_buffer_t *self, size_t index, size_t count, size_t size) {
+  size_t length, i, cpycount;
+  void *srcp, *dstp;
+  
+  length = nt_buffer_length(self) / size;
+  cpycount = count;
+  assert(index < length);
+  
+  for (i = index; i < length; i += cpycount) {
+    if (i + cpycount > length)
+      cpycount = length - i;
+    srcp = ADDROF(self, i + cpycount, size);
+    dstp = ADDROF(self, i, size);
+    AN(memcpy((void *)dstp, (const void *)srcp, size * cpycount));
+  }
+  
+  self->ptr = (byte_t *)ADDROF(self, length - count, size);
+  memset((void *)dstp, 0, size * count);
 }

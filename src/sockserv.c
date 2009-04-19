@@ -19,81 +19,77 @@
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
   THE SOFTWARE.
 **/
-#include "tcp_server.h"
-#include "fd_tcp.h"
+#include "sockserv.h"
+#include "sockutil.h"
 #include "mpool.h"
 #include <netinet/in.h>
 #include <netdb.h>
-#include <sys/socket.h>
 
 #ifndef IPPROTO_IPV4
 #define IPPROTO_IPV4 IPPROTO_IPIP
 #endif
 
-static void _dealloc(nt_tcp_server_t *self) {
+static void _dealloc(nt_sockserv_t *self) {
   if (self->ev4)
     nt_free(self->ev4, sizeof(struct event));
   if (self->ev6)
     nt_free(self->ev6, sizeof(struct event));
-  nt_free(self, sizeof(nt_tcp_server_t));
+  nt_free(self, sizeof(nt_sockserv_t));
 }
 
 
-nt_tcp_server_t *nt_tcp_server_new(nt_tcp_server_on_accept_t on_accept) {
-  NT_OBJ_ALLOC_INIT_self(nt_tcp_server_t, &_dealloc);
-  NT_OBJ_CLEAR(self, nt_tcp_server_t);
-  self->fd4 = self->fd6 = -1;
+nt_sockserv_t *nt_sockserv_new(nt_sockserv_on_accept_t on_accept) {
+  NT_OBJ_ALLOC_INIT_self(nt_sockserv_t, &_dealloc);
+  NT_OBJ_CLEAR(self, nt_sockserv_t);
+  self->fd4 = -1;
+  self->fd6 = -1;
   self->on_accept = on_accept;
   return self;
 }
 
 
-bool nt_tcp_server_bindtoaddr(nt_tcp_server_t *server, const nt_sockaddr_t *sa, void *aiv) {
+bool nt_sockserv_bindtoaddr(nt_sockserv_t *self, const nt_sockaddr_t *sa, int type) {
   int *fd;
   
   // Get fd
-  fd = (sa->ss_family == AF_INET6) ? &server->fd6 : &server->fd4;
+  fd = (sa->ss_family == AF_INET6) ? &self->fd6 : &self->fd4;
   if (*fd != -1)
     return false;
   
   // Create socket
-  if ((*fd = nt_fd_tcp_socket(sa->ss_family)) == -1)
+  if ((*fd = nt_sockutil_socket(type, sa->ss_family)) == -1)
     return false;
   
   // Bind to sa
-  if (nt_fd_tcp_bind(*fd, sa) != 0) {
+  if (nt_sockutil_bind(*fd, sa) != 0) {
     nt_fd_close(fd);
     return false;
   }
   
   // Save address
   if (sa->ss_family == AF_INET6)
-    memcpy((void * restrict)&server->addr6, (const void * restrict)sa, sizeof(struct sockaddr_in6));
+    memcpy((void * restrict)&self->addr6, (const void * restrict)sa, sizeof(struct sockaddr_in6));
   else
-    memcpy((void * restrict)&server->addr4, (const void * restrict)sa, sizeof(struct sockaddr_in));
-  
-  if (listen(*fd, SOMAXCONN) == -1)
-    nt_warn("listen");
+    memcpy((void * restrict)&self->addr4, (const void * restrict)sa, sizeof(struct sockaddr_in));
   
   return true;
 }
 
 
-bool nt_tcp_server_bind(nt_tcp_server_t *server, const char *addr, int port, int proto) {
+bool nt_sockserv_bind(nt_sockserv_t *self, const char *addr, int port, int type, int family) {
   struct addrinfo hints, *servinfo, *ai;
   int rv;
   char strport[12];
   
-  assert(server != NULL);
+  assert(self != NULL);
   assert(addr != NULL);
-  assert(server->on_accept != NULL);
+  assert(self->on_accept != NULL);
   
   // Setup getaddrinfo hints
   memset(&hints, 0, sizeof(hints));
   hints.ai_flags = AI_PASSIVE; // AI_CANONNAME also ?
-  hints.ai_family = AF_UNSPEC;
-  hints.ai_socktype = SOCK_STREAM;
-  hints.ai_protocol = proto;
+  hints.ai_family = family;
+  hints.ai_socktype = type;
   
   // getaddrinfo
   snprintf(strport, sizeof(strport), "%d", port);
@@ -105,17 +101,26 @@ bool nt_tcp_server_bind(nt_tcp_server_t *server, const char *addr, int port, int
   
   // loop through all the results and bind to the first found addr per af
   for ( ai = servinfo; ai; ai = ai->ai_next ) {
-    assert(ai->ai_socktype == SOCK_STREAM);
-    assert(ai->ai_protocol == IPPROTO_TCP);
+    //printf("%s %d\n", nt_sockaddr_host((const nt_sockaddr_t *)ai->ai_addr),
+    //  nt_sockaddr_port((const nt_sockaddr_t *)ai->ai_addr));
     
-    if (((ai->ai_family == AF_INET6) ? server->fd6 : server->fd4) != -1)
+    if (((ai->ai_family == AF_INET6) ? self->fd6 : self->fd4) != -1)
       continue;
     
-    if (!nt_tcp_server_bindtoaddr(server, (const nt_sockaddr_t *)ai->ai_addr, (void *)ai))
+    if (!nt_sockserv_bindtoaddr(self, (const nt_sockaddr_t *)ai->ai_addr, ai->ai_socktype))
       break;
   }
   
   freeaddrinfo(servinfo);
   
-  return (server->fd4 != -1 || server->fd6 != -1);
+  return (self->fd4 != -1 || self->fd6 != -1);
+}
+
+
+bool nt_sockserv_listen(nt_sockserv_t *self) {
+  if (self->fd4 != -1 && listen(self->fd4, SOMAXCONN) == -1)
+    return false;
+  if (self->fd6 != -1 && listen(self->fd6, SOMAXCONN) == -1)
+    return false;
+  return (self->fd4 != -1 || self->fd6 != -1);
 }

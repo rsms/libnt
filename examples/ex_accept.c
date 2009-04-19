@@ -2,7 +2,7 @@
  This code is released in the Public Domain (no restrictions, no support
  100% free) by Notion.
 */
-#include "../src/tcp_server.h"
+#include "../src/sockserv.h"
 #include "../src/util.h"
 #include <stdlib.h>
 #include <stdio.h>
@@ -22,7 +22,7 @@ static void handle_accept(struct ev_loop *loop, struct ev_io *w, int revents) {
   }
 }
 
-static void print_info(nt_tcp_server *server) {
+static void print_info(nt_sockserv *server) {
   printf("libev backend: %s\n", nt_util_ev_strbackend(ev_backend(server->loop)));
   if (server->socket6) {
     printf("listening on [%s]:%d\n", 
@@ -36,7 +36,7 @@ static void print_info(nt_tcp_server *server) {
 
 int main(int argc, char * const *argv) {
   // usage: prog [bindaddr [bindport]]
-  nt_tcp_server *server;
+  nt_sockserv *server;
   char *addr = "";
   int port = 8080;
   
@@ -47,18 +47,18 @@ int main(int argc, char * const *argv) {
     port = atoi(argv[2]);
   
   // Use the shared server
-  server = nt_tcp_server_shared();
+  server = nt_sockserv_shared();
   
   // Set our accept handler
   server->accept_cb = &handle_accept;
   
   // Bind (and listen())
-  if (!nt_tcp_server_bind(server, addr, port, true, false)) exit(1);
+  if (!nt_sockserv_bind(server, addr, port, true, false)) exit(1);
   
   // "Start" can be thought of as a non-blocking accept(). What happens here
   // is simply the servers I/O (accept) event watchers are added to the
   // runloop server->loop.
-  if (!nt_tcp_server_start(server)) exit(1);
+  if (!nt_sockserv_start(server)) exit(1);
   
   // Register signal handlers.
   // Passing NULL for the third argument implies using the built-in unloop-all
@@ -70,11 +70,11 @@ int main(int argc, char * const *argv) {
   print_info(server);
   
   // process events
-  nt_tcp_server_run(server, 0);
+  nt_sockserv_run(server, 0);
   // we came all the way down here, which means unloop was called.
   
   // free tcp server members
-  nt_tcp_server_destroy(server);
+  nt_sockserv_destroy(server);
   
   return 0;
 }

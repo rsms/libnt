@@ -19,7 +19,7 @@
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
   THE SOFTWARE.
 */
-#include "fd_tcp.h"
+#include "sockutil.h"
 #include "util.h"
 #include "mpool.h"
 #include <stdlib.h>
@@ -27,29 +27,46 @@
 #include <unistd.h>
 #include <netinet/tcp.h>
 #include <sys/ioctl.h>
+#include <sys/un.h>
 
 
-int nt_fd_tcp_bind(int fd, const nt_sockaddr_t *sa) {
+int nt_sockutil_socket(int type, int family) {
+  int fd;
+  if (family == AF_UNIX) {
+    if ((fd = socket(family, type, 0)) == -1)
+      nt_warn("nt_sockutil_socket UNIX");
+  }
+  else if (type == SOCK_DGRAM) {
+    if ((fd = socket(family, type, IPPROTO_UDP)) == -1)
+      nt_warn("nt_sockutil_socket UDP");
+  }
+  else {
+    if ((fd = socket(family, type, IPPROTO_TCP)) == -1)
+      nt_warn("nt_sockutil_socket TCP");
+  }
+  return fd;
+}
+
+
+int nt_sockutil_bind(int fd, const nt_sockaddr_t *sa) {
   int rc;
   socklen_t salen;
   
   // Reuse address
-  nt_fd_tcp_setiopt(fd, SOL_SOCKET, SO_REUSEADDR, 1);
+  nt_sockutil_setiopt(fd, SOL_SOCKET, SO_REUSEADDR, 1);
   
   // Reuse port
   #ifdef SO_REUSEPORT
-  nt_fd_tcp_setiopt(fd, SOL_SOCKET, SO_REUSEPORT, 1);
+  nt_sockutil_setiopt(fd, SOL_SOCKET, SO_REUSEPORT, 1);
   #endif
   
   // APPLE: Allow reuse of port/socket by different userids
   #ifdef SO_REUSESHAREUID
-  nt_fd_tcp_setiopt(fd, SOL_SOCKET, SO_REUSESHAREUID, 1);
+  nt_sockutil_setiopt(fd, SOL_SOCKET, SO_REUSESHAREUID, 1);
   #endif
   
   // Set non-blocking
-  nt_fd_tcp_setblocking(fd, false);
-  if(errno != 0)
-    nt_warn("nt_fd_tcp_setblocking");
+  nt_sockutil_setblocking(fd, false);
   
   /* Don't delay send to coalesce packets (disable the Nagle algorithm) */
   /*if ( !blocking && !nt_tcp_socket_setiopt(self, IPPROTO_TCP, TCP_NODELAY, 1)) {
@@ -58,6 +75,8 @@ int nt_fd_tcp_bind(int fd, const nt_sockaddr_t *sa) {
     return false;
   }*/
   
+  if (sa->ss_family == AF_UNIX)
+    salen = sizeof(struct sockaddr_un);
   if (sa->ss_family == AF_INET6)
     salen = sizeof(struct sockaddr_in6);
   else

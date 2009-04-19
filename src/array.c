@@ -1,6 +1,4 @@
 /**
-  Generic array modeled on top of buffer.h.
-  
   Copyright (c) 2009 Notion <http://notion.se/>
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -21,38 +19,25 @@
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
   THE SOFTWARE.
 **/
-#ifndef _NT_ARRAY_H_
-#define _NT_ARRAY_H_
 
-#include "buffer.h"
+#include "array.h"
 
-typedef nt_buffer_t nt_array_t;
-
-#define nt_array_new(capacity, growextra) \
-  nt_buffer_new((capacity)*sizeof(void*), (growextra)*sizeof(void*))
-
-#define nt_array_size(self)       (((self)->end - (self)->start) / sizeof(void*))
-
-#define nt_array_length(self)     (((self)->ptr - (self)->start) / sizeof(void*))
-
-#define nt_array_available(self)  (((self)->end - (self)->ptr) / sizeof(void*))
-
-#define nt_array_push(self, vptr) \
-  nt_buffer_append(self, (byte_t *)((void **)&(vptr)), sizeof(void*))
-
-#define nt_array_get(self, i) \
-  *((void **)((self)->start + (sizeof(void*) * (i))))
-
-#define nt_array_set(self, i, vptr) \
-  memcpy(((void **)((self)->start + (sizeof(void*) * (i)))), (void **)&(vptr), sizeof(void*))
-
-
-ssize_t nt_array_indexof(nt_array_t *self, const void *what);
-
-NT_STATIC_INLINE
-void nt_array_del(nt_array_t *a, size_t index, size_t count) {
-  nt_buffer_del((nt_buffer_t *)a, index, count, sizeof(void*));
+ssize_t nt_array_indexof(nt_array_t *a, const void *what) {
+  ssize_t i;
+  size_t len = nt_array_length(a);
+  for (i = 0; i < len; i++)
+    if (nt_array_get(a, i) == what)
+      return i;
+  return -1;
 }
 
+/*
+v =>  a,b,c,d,e,f,g
+nt_array_del(v, 2, 2)
+....  a b|c d|e f g  cut
+....  a b _ _ e f g
+....  a b _ e f g _  <
+....  a b e f g _ _  <
+v =>  a b e f g _ _
+*/
 
-#endif

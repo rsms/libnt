@@ -19,27 +19,27 @@
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
   THE SOFTWARE.
 */
-#include "tcp_client.h"
-#include "tcp_server.h"
+#include "sockconn.h"
+#include "sockserv.h"
 #include "fd.h"
-#include "fd_tcp.h"
+#include "sockutil.h"
 #include "runloop.h"
 #include "mpool.h"
 
 
-static void _dealloc(nt_tcp_client_t *self) {
-  nt_tcp_client_close(self);
+static void _dealloc(nt_sockconn_t *self) {
+  nt_sockconn_close(self);
   if (self->bev.input)
     nt_free(self->bev.input, sizeof(struct evbuffer));
   if (self->bev.output)
     nt_free(self->bev.output, sizeof(struct evbuffer));
-  nt_free(self, sizeof(nt_tcp_client_t));
+  nt_free(self, sizeof(nt_sockconn_t));
 }
 
 
-nt_tcp_client_t *nt_tcp_client_new() {
-  NT_OBJ_ALLOC_INIT_self(nt_tcp_client_t, &_dealloc);
-  NT_OBJ_CLEAR(self, nt_tcp_client_t);
+nt_sockconn_t *nt_sockconn_new() {
+  NT_OBJ_ALLOC_INIT_self(nt_sockconn_t, &_dealloc);
+  NT_OBJ_CLEAR(self, nt_sockconn_t);
   
   self->fd = -1;
   self->bev.input = nt_calloc(1, sizeof(struct evbuffer));
@@ -58,7 +58,7 @@ nt_tcp_client_t *nt_tcp_client_new() {
 }
 
 
-void nt_tcp_client_setfd(nt_tcp_client_t *self, int fd) {
+void nt_sockconn_setfd(nt_sockconn_t *self, int fd) {
   self->fd = fd;
   // might need to event_set first, with dummy values since bufferevent_setfd
   // performs event_del which might fail in future versions.
@@ -66,7 +66,7 @@ void nt_tcp_client_setfd(nt_tcp_client_t *self, int fd) {
 }
 
 
-void nt_tcp_client_setrs(nt_tcp_client_t *self, nt_tcp_server_runloop_t *rs) {
+void nt_sockconn_setrs(nt_sockconn_t *self, nt_sockserv_runloop_t *rs) {
   self->rs = rs;
   // Set base if needed
   if (self->rs->runloop)
@@ -75,18 +75,17 @@ void nt_tcp_client_setrs(nt_tcp_client_t *self, nt_tcp_server_runloop_t *rs) {
 
 
 NT_STATIC_INLINE
-void _default_errorcb(struct bufferevent *bev, short what, nt_tcp_client_t *client) {
-  if (!(what & EVBUFFER_EOF)) {
-    warn("client socket error -- disconnecting client\n");
-  }
+void _default_errorcb(struct bufferevent *bev, short what, nt_sockconn_t *client) {
+  if (!(what & EVBUFFER_EOF))
+    warn("socket error");
   nt_xrelease(client);
 }
 
 
-void nt_tcp_client_setcb( nt_tcp_client_t *self,
-                          nt_tcp_client_readcb_t readcb,
-                          nt_tcp_client_writecb_t writecb,
-                          nt_tcp_client_errorcb_t errorcb)
+void nt_sockconn_setcb( nt_sockconn_t *self,
+                          nt_sockconn_readcb_t readcb,
+                          nt_sockconn_writecb_t writecb,
+                          nt_sockconn_errorcb_t errorcb)
 {
   if (errorcb == NULL)
     errorcb = &_default_errorcb;
@@ -96,31 +95,37 @@ void nt_tcp_client_setcb( nt_tcp_client_t *self,
 }
 
 
-nt_tcp_client_t *nt_tcp_client_accept(nt_tcp_server_runloop_t *rs,
-                                      int fd,
-                                      nt_tcp_client_readcb_t readcb,
-                                      nt_tcp_client_writecb_t writecb,
-                                      nt_tcp_client_errorcb_t errorcb)
+bool nt_sockconn_accept(nt_sockconn_t *self,
+                        nt_sockserv_runloop_t *rs,
+                        int fd,
+                        nt_sockconn_readcb_t readcb,
+                        nt_sockconn_writecb_t writecb,
+                        nt_sockconn_errorcb_t errorcb)
 {
-  nt_tcp_client_t *client;
+  self->fd = nt_sockutil_accept(fd, &self->addr);
+  assert(self->fd != -1);
+  nt_sockconn_setfd(self, self->fd);
+  nt_sockconn_setrs(self, rs);
+  nt_sockconn_setcb(self, readcb, writecb, errorcb);
+  nt_sockutil_setblocking(self->fd, false);
+  nt_runloop_addsockconn(rs->runloop, self);
   
-  client = nt_tcp_client_new();
-  assert(client != NULL);
-  
-  client->fd = nt_fd_tcp_accept(fd, &client->addr);
-  assert(client->fd != -1);
-  nt_tcp_client_setfd(client, client->fd);
-  nt_tcp_client_setrs(client, rs);
-  nt_fd_tcp_setblocking(client->fd, false);
-  nt_tcp_client_setcb(client, readcb, writecb, errorcb);
-  nt_runloop_add_client(rs->runloop, client);
-  
-  return client;
+  return true;
 }
 
 
-void nt_tcp_client_close(nt_tcp_client_t *self) {
+void nt_sockconn_close(nt_sockconn_t *self) {
   assert(self->rs != NULL);
-  nt_runloop_remove_client(self->rs->runloop, self);
+  nt_runloop_rmsockconn(self->rs->runloop, self);
   nt_fd_close(&self->fd);
+}
+
+
+void nt_sockconn_abort(nt_sockconn_t *self) {
+  struct linger lingeropt;
+  lingeropt.l_onoff = 1;
+  lingeropt.l_linger = 0;
+  AZ(setsockopt(self->fd, SOL_SOCKET, SO_LINGER, (char *)&lingeropt, sizeof(lingeropt)));
+  nt_sockutil_shutdown(self->fd);
+  nt_sockconn_close(self);
 }

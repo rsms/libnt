@@ -28,19 +28,21 @@
 #include "sockaddr.h"
 #include <sys/socket.h>
 #include <sys/ioctl.h>
+#include <sys/un.h>
 
 /**
   Creates an endpoint for communication and returns a descriptor.
   
-  @param family protocol family (AF_INET or AF_INET6)
+  Create a TCP 4 socket:  nt_sockutil_socket(AF_INET,  SOCK_STREAM)
+  Create a TCP 6 socket:  nt_sockutil_socket(AF_INET6, SOCK_STREAM)
+  Create a UDP 4 socket:  nt_sockutil_socket(AF_INET,  SOCK_DGRAM)
+  Create a UDP 6 socket:  nt_sockutil_socket(AF_INET6, SOCK_DGRAM)
+  Create a UNIX socket:   nt_sockutil_socket(AF_UNIX,  SOCK_STREAM)
+  
+  @param family protocol family (AF_INET, AF_INET6 or AF_UNIX)
   @returns the socket FD or -1 on error.
 **/
-NT_STATIC_INLINE int nt_fd_tcp_socket(int family) {
-  int fd = socket(family, SOCK_STREAM, IPPROTO_TCP);
-  if (fd == -1)
-    nt_warn("socket");
-  return fd;
-}
+int nt_sockutil_socket(int type, int family);
 
 /**
   Get an integer socket option.
@@ -50,7 +52,7 @@ NT_STATIC_INLINE int nt_fd_tcp_socket(int family) {
   @param option the option to retrieve.
   @returns the value
 **/
-NT_STATIC_INLINE int nt_fd_tcp_getiopt(int fd, int level, int option) {
+NT_STATIC_INLINE int nt_sockutil_getiopt(int fd, int level, int option) {
   int v = 0;
   socklen_t vsz = sizeof(v);
   AZ(getsockopt(fd, level, option, (void *restrict)&v, &vsz));
@@ -65,7 +67,7 @@ NT_STATIC_INLINE int nt_fd_tcp_getiopt(int fd, int level, int option) {
   @param option the option to set.
   @param value the value
 **/
-NT_STATIC_INLINE void nt_fd_tcp_setiopt(int fd, int level, int option, int value) {
+NT_STATIC_INLINE void nt_sockutil_setiopt(int fd, int level, int option, int value) {
   AZ(setsockopt(fd, level, option, (const void *)&value, (socklen_t)sizeof(int)));
 }
 
@@ -76,7 +78,7 @@ NT_STATIC_INLINE void nt_fd_tcp_setiopt(int fd, int level, int option, int value
   @param blocking if true, operations on @fd will block, otherwise calls like
                   read() will not block.
 **/
-NT_STATIC_INLINE void nt_fd_tcp_setblocking(int fd, bool blocking) {
+NT_STATIC_INLINE void nt_sockutil_setblocking(int fd, bool blocking) {
   blocking = !blocking;
 	AZ(ioctl(fd, FIONBIO, (int *)&blocking));
 }
@@ -88,7 +90,7 @@ NT_STATIC_INLINE void nt_fd_tcp_setblocking(int fd, bool blocking) {
   @param sa address.
   @returns see documentation of bind()
 **/
-int nt_fd_tcp_bind(int fd, const nt_sockaddr_t *sa);
+int nt_sockutil_bind(int fd, const nt_sockaddr_t *sa);
 
 /**
   Check if socket is listening or not.
@@ -97,8 +99,8 @@ int nt_fd_tcp_bind(int fd, const nt_sockaddr_t *sa);
   @returns true if @fd has been successfully passed through listen(),
            otherwise false.
 **/
-NT_STATIC_INLINE bool nt_fd_tcp_islistening(int fd) {
-  return nt_fd_tcp_getiopt(fd, SOL_SOCKET, SO_ACCEPTCONN) ? true : false;
+NT_STATIC_INLINE bool nt_sockutil_islistening(int fd) {
+  return nt_sockutil_getiopt(fd, SOL_SOCKET, SO_ACCEPTCONN) ? true : false;
 }
 
 /**
@@ -108,7 +110,7 @@ NT_STATIC_INLINE bool nt_fd_tcp_islistening(int fd) {
   @param sa a value-return parameter which is the client address.
   @returns open client socket on success or -1 on failure.
 **/
-NT_STATIC_INLINE int nt_fd_tcp_accept(int fd, nt_sockaddr_t *sa) {
+NT_STATIC_INLINE int nt_sockutil_accept(int fd, nt_sockaddr_t *sa) {
   socklen_t saz = sizeof(nt_sockaddr_t);
   return accept(fd, (struct sockaddr *)sa, &saz);
 }
@@ -118,7 +120,7 @@ NT_STATIC_INLINE int nt_fd_tcp_accept(int fd, nt_sockaddr_t *sa) {
   
   @param fd socket
 **/
-NT_STATIC_INLINE int nt_fd_tcp_shutdown(int fd) {
+NT_STATIC_INLINE int nt_sockutil_shutdown(int fd) {
   return shutdown(fd, SHUT_RDWR);
 }
 

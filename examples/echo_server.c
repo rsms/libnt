@@ -3,14 +3,15 @@
  100% free) by Notion.
 */
 #include "../src/runloop.h"
-#include "../src/tcp_server.h"
-#include "../src/tcp_client.h"
+#include "../src/sockserv.h"
+#include "../src/sockconn.h"
 #include "../src/mpool.h"
 #include "../src/sockaddr.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <err.h>
+#include <signal.h>
 #include <event.h>
 
 /**
@@ -21,13 +22,23 @@
 /**
   We call this function when a new client have connected.
 */
-static void on_client_connected(nt_tcp_client_t *client) {
-  printf("client %p connected from %s on port %d\n", client, HOSTPORT(&client->addr));
+static void on_connected(nt_sockconn_t *conn) {
+  printf("connection %p (%s on port %d)\n", conn, HOSTPORT(&conn->addr));
   
   // Send a warm welcome
   static char data[] = 
     "Send something to me and I will send it back to you my friend.\n";
-  nt_tcp_client_write(client, data, sizeof(data));
+  nt_sockconn_write(conn, data, sizeof(data));
+}
+
+/**
+  We call this function when a connection have been invalidated.
+*/
+static void on_disconnected(nt_sockconn_t *conn) {
+  printf("connection %p closed (%s on port %d)\n", conn, HOSTPORT(&conn->addr));
+  
+  // Simply release our reference to conn
+  nt_release(conn);
 }
 
 /**
@@ -35,13 +46,12 @@ static void on_client_connected(nt_tcp_client_t *client) {
   
   In this program we simply send back whetever we received.
 */
-static void on_client_read(struct bufferevent *bev, nt_tcp_client_t *client) {
+static void on_conn_read(struct bufferevent *bev, nt_sockconn_t *conn) {
   /* 
     Simply write the bev->input to the buffer (bev->output), thus echoing
     bev->input back to the client.
   */
-  nt_tcp_client_writebuf(client, bev->input);
-  //nt_tcp_client_close(client);
+  //nt_sockconn_writebuf(conn, bev->input);
   /*
     The above line is roughly equivalent to this code:
     
@@ -49,6 +59,7 @@ static void on_client_read(struct bufferevent *bev, nt_tcp_client_t *client) {
     int len = bufferevent_read(&client->bev, buf, BUFLEN);
     bufferevent_write(&client->bev, buf, len);
   */
+  nt_sockutil_shutdown(conn->fd);
 }
 
 /**
@@ -57,13 +68,21 @@ static void on_client_read(struct bufferevent *bev, nt_tcp_client_t *client) {
   Basically, this function is called when a client is no longer available.
   The cause may be a channel error or a nice disconnect.
 */
-static void on_client_error(struct bufferevent *bev, short what, nt_tcp_client_t *client) {
+static void on_conn_error(struct bufferevent *bev, short what, nt_sockconn_t *client) {
   if (what & EVBUFFER_EOF)
-    printf("client %p disconnected\n", client);
-  else
-    warnx("client %p error\n", client);
-  nt_tcp_client_close(client);
-  nt_release(client);
+    printf("connection %p EOF\n", client);
+  if (what & EVBUFFER_ERROR)
+    warn("connection %p error", client);
+  else {
+    printf("connection %p broken:", client);
+    if (what & EVBUFFER_READ) printf(" EVBUFFER_READ");
+    if (what & EVBUFFER_WRITE) printf(" EVBUFFER_WRITE");
+    if (what & EVBUFFER_ERROR) printf(" EVBUFFER_ERROR");
+    if (what & EVBUFFER_TIMEOUT) printf(" EVBUFFER_TIMEOUT");
+    printf("\n");
+  }
+  nt_sockconn_close(client);
+  on_disconnected(client);
 }
 
 /**
@@ -73,24 +92,35 @@ static void on_client_error(struct bufferevent *bev, short what, nt_tcp_client_t
   to be accept() ed. You have to accept (or remove) the event, or else we will
   end up in an never-ending loop (because of nt_event_base).
 */
-static void on_accept(int fd, short ev, nt_tcp_server_runloop_t *rs) {
-  nt_tcp_client_t *client;
-  if ( (client = nt_tcp_client_accept(rs, fd, &on_client_read, NULL, &on_client_error)) ) {
-    // Call our on_client_connected function
-    on_client_connected(client);
-  }
-  // In a real program, you would proabaly handle a NULL return from
-  // nt_tcp_client_accept here.
+static void on_accept(int fd, short ev, nt_sockserv_runloop_t *rs) {
+  nt_sockconn_t *conn;
+  conn = nt_sockconn_new();
+  
+  // Set read and write timeouts, in seconds
+  nt_sockconn_settimeout(conn, 5, 5);
+  
+  if (nt_sockconn_accept(conn, rs, fd, &on_conn_read, NULL, &on_conn_error))
+    on_connected(conn);
+  else
+    nt_release(conn);
+}
+
+/**
+  Called when a signal which we have subscribed to was raised
+**/
+static void on_signal(int signum, short event, struct event *ev) {
+	printf("%s: got signal %d %s\n", __func__, signum, sys_signame[signum]);
+  event_base_loopbreak(ev->ev_base);
 }
 
 
 int main(int argc, char * const *argv) {
-  // Our server and base objects
-  nt_tcp_server_t *server;
+  // Our server and runloop
+  nt_sockserv_t *server;
   nt_runloop_t *runloop;
   
   // Command line arguments, with default values
-  char *addr = "";  // Address to bind to, in human notion
+  char *addr = "";  // Address or hostname to bind to
   int port = 7000;  // Port to bind to
   
   // Parse command line arguments
@@ -126,11 +156,14 @@ int main(int argc, char * const *argv) {
   */
   
   // Create server
-  server = nt_tcp_server_new(&on_accept);
+  server = nt_sockserv_new(&on_accept);
   
   // bind
-  if (!nt_tcp_server_bind(server, addr, port, 0))
+  if (!nt_sockserv_bind(server, addr, port, SOCK_STREAM, AF_UNSPEC))
     exit(1);
+  
+  // listen
+  nt_sockserv_listen(server);
   
   // print bound addresses to stdout
   if (server->fd4 != -1)
@@ -152,8 +185,13 @@ int main(int argc, char * const *argv) {
   runloop = nt_runloop_new();
   
   // Add our server
-  if (!nt_runloop_add_server(runloop, server))
+  if (!nt_runloop_addsockserv(runloop, server))
     exit(1);
+  
+  // Register signal handler
+  struct event sigev;
+	event_set(&sigev, SIGPIPE, EV_SIGNAL|EV_PERSIST, (void (*)(int, short, void *))on_signal, (void *)&sigev);
+  nt_runloop_addev(runloop, &sigev, NULL);
   
   // Run runloop
   int rc = nt_runloop_run(runloop, 0);

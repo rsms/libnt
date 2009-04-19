@@ -30,6 +30,7 @@
 #define NT_BUFFER_GROW_MAX 0x1000000
 
 typedef struct nt_buffer_t {
+  NT_OBJ_HEAD
   byte_t *start;    /* start address */
   byte_t *ptr;      /* next free byte */
   byte_t *end;      /* end address */
@@ -50,6 +51,8 @@ bool nt_buffer_appendb(nt_buffer_t *self, byte_t b);
 #define nt_buffer_appendc(self, c) nt_buffer_appendb(self, (byte_t)c)
 bool nt_buffer_appendf(nt_buffer_t *self, const char *fmt, ...) NT_ATTR((format(printf, 2, 3)));
 #define nt_buffer_appends(buf, what) nt_buffer_append((buf), (const byte_t *)(what), strlen(what))
+ssize_t nt_buffer_indexof(nt_buffer_t *self, const byte_t *what, size_t n);
+void nt_buffer_del(nt_buffer_t *buf, size_t index, size_t count, size_t size);
 
 
 #endif
