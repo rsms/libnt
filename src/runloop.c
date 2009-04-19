@@ -198,7 +198,7 @@ void nt_runloop_addsignal(nt_runloop_t *self, int signum, nt_runloop_signalcb_t 
     // make sure the event is not added already
     event_del(ev);
   }
-	event_set(ev, signum, EV_SIGNAL|EV_PERSIST, (void (*)(int, short, void *))cb, (void *)&ev);
+	event_set(ev, signum, EV_SIGNAL|EV_PERSIST, (void (*)(int, short, void *))cb, (void *)self);
   nt_runloop_addev(self, ev, timeout);
 }
 

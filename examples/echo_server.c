@@ -51,7 +51,7 @@ static void on_conn_read(struct bufferevent *bev, nt_sockconn_t *conn) {
     Simply write the bev->input to the buffer (bev->output), thus echoing
     bev->input back to the client.
   */
-  //nt_sockconn_writebuf(conn, bev->input);
+  nt_sockconn_writebuf(conn, bev->input);
   /*
     The above line is roughly equivalent to this code:
     
@@ -59,30 +59,29 @@ static void on_conn_read(struct bufferevent *bev, nt_sockconn_t *conn) {
     int len = bufferevent_read(&client->bev, buf, BUFLEN);
     bufferevent_write(&client->bev, buf, len);
   */
-  nt_sockutil_shutdown(conn->fd);
 }
 
 /**
-  Handles connection "errors".
+  Called when a connection "error" occured.
   
   Basically, this function is called when a client is no longer available.
-  The cause may be a channel error or a nice disconnect.
 */
-static void on_conn_error(struct bufferevent *bev, short what, nt_sockconn_t *client) {
+static void on_conn_error(struct bufferevent *bev, short what, nt_sockconn_t *conn) {
   if (what & EVBUFFER_EOF)
-    printf("connection %p EOF\n", client);
-  if (what & EVBUFFER_ERROR)
-    warn("connection %p error", client);
+    printf("connection %p EOF\n", conn);
+  else if (what & EVBUFFER_TIMEOUT)
+    printf("connection %p timed out\n", conn);
+  else if (what & EVBUFFER_ERROR)
+    warn("connection %p error", conn);
   else {
-    printf("connection %p broken:", client);
+    printf("connection %p broken:", conn);
     if (what & EVBUFFER_READ) printf(" EVBUFFER_READ");
     if (what & EVBUFFER_WRITE) printf(" EVBUFFER_WRITE");
     if (what & EVBUFFER_ERROR) printf(" EVBUFFER_ERROR");
-    if (what & EVBUFFER_TIMEOUT) printf(" EVBUFFER_TIMEOUT");
     printf("\n");
   }
-  nt_sockconn_close(client);
-  on_disconnected(client);
+  nt_sockconn_close(conn); // close socket and remove from runloop
+  on_disconnected(conn);
 }
 
 /**
@@ -105,12 +104,13 @@ static void on_accept(int fd, short ev, nt_sockserv_runloop_t *rs) {
     nt_release(conn);
 }
 
+
 /**
   Called when a signal which we have subscribed to was raised
 **/
-static void on_signal(int signum, short event, struct event *ev) {
-	printf("%s: got signal %d %s\n", __func__, signum, sys_signame[signum]);
-  event_base_loopbreak(ev->ev_base);
+static void on_signal(int signum, short event, nt_runloop_t *runloop) {
+	printf("%s: [%d] %s\n", __func__, signum, sys_signame[signum]);
+  event_base_loopbreak(runloop->ev_base); // exit program
 }
 
 
@@ -189,9 +189,7 @@ int main(int argc, char * const *argv) {
     exit(1);
   
   // Register signal handler
-  struct event sigev;
-	event_set(&sigev, SIGPIPE, EV_SIGNAL|EV_PERSIST, (void (*)(int, short, void *))on_signal, (void *)&sigev);
-  nt_runloop_addev(runloop, &sigev, NULL);
+  nt_runloop_addsignal(runloop, SIGPIPE, on_signal, NULL);
   
   // Run runloop
   int rc = nt_runloop_run(runloop, 0);

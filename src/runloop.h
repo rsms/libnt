@@ -42,7 +42,7 @@ typedef struct nt_runloop_t {
 /**
   Called when a observed signal was raised.
 **/
-typedef void (*nt_runloop_signalcb_t)(int signum, short event, struct event *ev);
+typedef void (*nt_runloop_signalcb_t)(int signum, short event, nt_runloop_t *runloop);
 
 /**
   Create a new nt_runloop_t
